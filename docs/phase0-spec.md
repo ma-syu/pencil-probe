@@ -195,7 +195,8 @@ Mac アプリへ送る）を扱っている。詳細は `knowledge/0007` に記�
 OpenDisplay は `CGVirtualDisplay` + TCP で映像を転送する方式であり、
 Virtualization.framework の VM とは異なるが、
 **Mac 側の注入手法（CGEvent tablet events）は本プロジェクトの経路 A と共通**。
-OpenDisplay でこの方式が動作しているなら、経路 A の実現可能性を裏付ける。
+v1.15.0（PR #163）でこの方式による筆圧転送が実装済みであり、
+経路 A の実現可能性を裏付ける。
 
 ### ライセンス制約
 
@@ -207,5 +208,8 @@ OpenDisplay でこの方式が動作しているなら、経路 A の実現可�
 GPL-3.0 のコードを MIT プロジェクトに取り込むと全体が GPL 化する。
 VirtualMacOniPad へ MIT で PR を出す前提のため、
 **OpenDisplay のコードは参照しない。設計方針の参照のみに留める。**
+v1.15.0 で動くコードが存在するため参照の誘惑が強いが、
+**PR #163 の差分・ソースコードは読まない**。
 
 同じ公開 API（`CGEvent`、`UITouch`）を使うこと自体はライセンス問題にならない。
+Apple 公式ドキュメントと `CGEvent.h` のヘッダから独立に実装する。
