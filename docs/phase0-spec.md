@@ -176,3 +176,36 @@ vz/host/vzxpchook.m
 **2 は Phase 1 で、Virtual Mac を一切触らずに検証できる。**
 固定値の筆圧イベントを注入して線の太さが変われば確定する。
 1 より先に 2 を確かめる方が、投資判断が早くできる。
+
+---
+
+## 先行事例: OpenDisplay（参照のみ）
+
+`github.com/peetzweg/opendisplay` が同じ課題（Pencil の筆圧・傾きを
+Mac アプリへ送る）を扱っている。詳細は `knowledge/0007` に記録。
+
+### 設計方針（Issue #4）
+
+1. iPad 側で `UITouch` の `force` `altitudeAngle` `azimuthAngle` +
+   coalesced touches を取得
+2. Mac 側で `CGEvent` の **tablet イベント**
+   （proximity + pointer events with pressure/tilt fields）を発行
+3. パーム・リジェクションは UIKit の Pencil/touch 区別をそのまま利用
+
+OpenDisplay は `CGVirtualDisplay` + TCP で映像を転送する方式であり、
+Virtualization.framework の VM とは異なるが、
+**Mac 側の注入手法（CGEvent tablet events）は本プロジェクトの経路 A と共通**。
+OpenDisplay でこの方式が動作しているなら、経路 A の実現可能性を裏付ける。
+
+### ライセンス制約
+
+| プロジェクト | ライセンス |
+|---|---|
+| OpenDisplay | **GPL-3.0** |
+| VirtualMacOniPad | MIT |
+
+GPL-3.0 のコードを MIT プロジェクトに取り込むと全体が GPL 化する。
+VirtualMacOniPad へ MIT で PR を出す前提のため、
+**OpenDisplay のコードは参照しない。設計方針の参照のみに留める。**
+
+同じ公開 API（`CGEvent`、`UITouch`）を使うこと自体はライセンス問題にならない。

@@ -17,6 +17,15 @@
 
 ---
 
+## 上流リポジトリ
+
+`~/projects/VirtualMacOniPad/` にフォークをクローン済み（MIT License）。
+入力処理は `VirtualMac/vz/host/VirtualMacApp.m` の `VZInputView`。
+
+**読むだけにすること。このディレクトリのファイルを変更しない。**
+上流への PR は手順が別にあり、勝手に編集すると PR に不要な差分が混入する。
+Phase 0/1 は Virtual Mac を触らずに完結する設計になっている。
+
 ## 実行環境
 
 macOS 15 / aarch64-darwin。実体は **iPad Pro M2 上の Virtual Mac**
