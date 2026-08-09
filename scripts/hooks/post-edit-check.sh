@@ -42,18 +42,34 @@ readonly VIOLATION_LOG="${PROJECT_ROOT}/.memory/violations.log"
 #   「行数が多いから削る」ではなく「実測で不要と分かったから削る」
 #   という判断を可能にする。
 record_violations() {
-    local output="$1" name
+    local output="$1" line name
 
     mkdir -p "$(dirname "${VIOLATION_LOG}")" 2>/dev/null || return 0
 
-    # check-all.sh の出力から [FAIL] 行を拾う
-    printf '%s\n' "${output}" |
-        sed -n 's/^\[FAIL\][[:space:]]*//p' |
-        while IFS= read -r name; do
-            [[ -n "${name}" ]] || continue
-            printf '%s\t%s\n' "$(date -u +%FT%TZ)" "${name}" \
-                >> "${VIOLATION_LOG}" 2>/dev/null
-        done
+    # check-all.sh の出力から [FAIL] 行を拾う。
+    #
+    # sed を使わない理由:
+    #   macOS の BSD sed は、ロケールが C や未設定のとき
+    #   マルチバイト文字を含む行で "illegal byte sequence" を起こす。
+    #   check-all.sh の出力には日本語のエラーメッセージが含まれるため、
+    #   sed で処理すると途中で止まり、以降の FAIL が記録されない。
+    #   実際にこれで check-var-expansion の違反が記録漏れした。
+    #
+    #   bash の文字列操作はバイト列として扱うため、この問題が起きない。
+    while IFS= read -r line; do
+        # 行頭が [FAIL] のものだけを対象にする
+        [[ "${line}" == '[FAIL]'* ]] || continue
+
+        # "[FAIL] " を取り除き、前後の空白を落とす
+        name="${line#'[FAIL]'}"
+        name="${name#"${name%%[![:space:]]*}"}"   # 先頭の空白
+        name="${name%"${name##*[![:space:]]}"}"   # 末尾の空白
+
+        [[ -n "${name}" ]] || continue
+        printf '%s\t%s\n' "$(date -u +%FT%TZ)" "${name}" \
+            >> "${VIOLATION_LOG}" 2>/dev/null
+    done <<< "${output}"
+
     return 0
 }
 

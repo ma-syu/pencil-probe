@@ -33,7 +33,7 @@ collect_checks() {
 # --- 実行 -------------------------------------------------------------------
 
 main() {
-    local path name output status
+    local path name output status detail
     local passed=0 failed=0
     local -a failures=()
 
@@ -63,7 +63,15 @@ main() {
         else
             printf '[FAIL] %s\n' "${name}"
             # 失敗時のみ詳細を出す。PASS 時のノイズを避ける。
-            printf '%s\n' "${output}" | sed 's/^/       /'
+            #
+            # sed でインデントしない理由:
+            #   macOS の BSD sed は、ロケールが C や未設定のとき
+            #   マルチバイト文字を含む行で "illegal byte sequence" を起こす。
+            #   検査の出力には日本語が含まれるため、sed を通すと
+            #   そこで処理が止まり、以降の行が失われる。
+            while IFS= read -r detail; do
+                printf '       %s\n' "${detail}"
+            done <<< "${output}"
             failures+=("${name}")
             (( failed++ ))
         fi

@@ -27,6 +27,13 @@ readonly PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}"
 
 cd "${PROJECT_ROOT}" || exit 0   # 失敗しても作業は止めない
 
+# 索引を最新にしてから読む。
+# 知識を追加したのに再生成し忘れる、という事故を防ぐ。
+# 生成物なので、常に作り直しても情報は失われない。
+if [[ -x ./scripts/memory-index.sh ]]; then
+    ./scripts/memory-index.sh >/dev/null 2>&1 || true
+fi
+
 printf '=== プロジェクト状態（自動注入 / %s）===\n' "$(date '+%F %T')"
 
 # --- 制約の現在の合否 -------------------------------------------------------
@@ -61,15 +68,37 @@ fi
 # --- 記録済みの知識 ---------------------------------------------------------
 # 索引を載せることで「読みに行く」判断のきっかけを作る。
 # 本文は載せない（長くなるため）。
+#
+# status を front matter から読まない理由:
+#   状態（active / violated / orphaned / stale）は静的な値ではなく、
+#   制約テストの成否や参照実績から scripts/memory-index.sh が
+#   動的に判定する。ここで独自に判定すると同じロジックが 2 箇所に存在し、
+#   片方が必ず腐る。実際、当初は front matter を読もうとして
+#   常に [unknown] を表示していた。
+#
+#   MEMORY.md は memory-index.sh の生成物なので、そこから読めば
+#   判定は 1 箇所に集約される。
 printf '\n## knowledge/ の索引\n'
-if [[ -d ./knowledge ]] && compgen -G './knowledge/*.md' >/dev/null; then
-    local_file=""
-    for local_file in ./knowledge/*.md; do
-        # front matter の title を拾う。無ければファイル名。
-        title="$(sed -n 's/^title:[[:space:]]*//p' "${local_file}" | head -1)"
-        status="$(sed -n 's/^status:[[:space:]]*//p' "${local_file}" | head -1)"
-        printf -- '- %s [%s] %s\n' \
-            "$(basename "${local_file}")" "${status:-unknown}" "${title:-}"
+if [[ -f ./MEMORY.md ]]; then
+    # 「## 索引」以降のテーブル行だけを抜き出す。
+    # MEMORY.md には状態の凡例テーブルもあるため、
+    # 見出しを目印にして範囲を限定する。
+    in_index=0
+    while IFS= read -r row; do
+        case "${row}" in
+            '## 索引'*) in_index=1; continue ;;
+        esac
+        (( in_index )) || continue
+        case "${row}" in
+            '|---'*|'| ID '*) continue ;;
+            '|'*) printf '%s\n' "${row}" ;;
+        esac
+    done < MEMORY.md
+    printf '\n（この索引は ./scripts/memory-index.sh の生成物）\n'
+elif [[ -d ./knowledge ]] && compgen -G './knowledge/*.md' >/dev/null; then
+    printf 'MEMORY.md が未生成です。./scripts/memory-index.sh を実行してください。\n'
+    for entry in ./knowledge/*.md; do
+        printf -- '- %s\n' "$(basename "${entry}")"
     done
 else
     printf '（記録なし）\n'

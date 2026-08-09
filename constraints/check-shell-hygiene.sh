@@ -39,7 +39,7 @@ collect_targets() {
 }
 
 main() {
-    local file exit_code=0 checked=0
+    local file detail exit_code=0 checked=0
 
     cd "${PROJECT_ROOT}" || return 1
 
@@ -50,7 +50,10 @@ main() {
         # 1. 構文チェック
         if ! bash -n "${file}" 2>/dev/null; then
             printf '%s: 構文エラー\n' "${file}" >&2
-            bash -n "${file}" 2>&1 | sed 's/^/    /' >&2
+            # sed でインデントしない（BSD sed がマルチバイトで落ちるため）
+            while IFS= read -r detail; do
+                printf '    %s\n' "${detail}" >&2
+            done < <(bash -n "${file}" 2>&1)
             exit_code=1
             continue
         fi
