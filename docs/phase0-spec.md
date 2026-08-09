@@ -182,7 +182,7 @@ vz/host/vzxpchook.m
 ## 先行事例: OpenDisplay（参照のみ）
 
 `github.com/peetzweg/opendisplay` が同じ課題（Pencil の筆圧・傾きを
-Mac アプリへ送る）を扱っている。詳細は `knowledge/0007` に記録。
+Mac アプリへ送る）を扱っている。詳細は `knowledge/P0002` に記録。
 
 ### 設計方針（Issue #4）
 

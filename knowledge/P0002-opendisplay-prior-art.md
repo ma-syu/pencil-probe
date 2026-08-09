@@ -1,10 +1,10 @@
 ---
-id: 0007
+id: P0002
 title: OpenDisplay が同じ課題（Pencil の筆圧・傾きを Mac へ送る）を扱っている
 created: 2026-08-10
 verified: 2026-08-10
 constraint:
-relates: [0003]
+relates: [P0001]
 ---
 
 ## 事実

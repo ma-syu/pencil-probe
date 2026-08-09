@@ -1,5 +1,5 @@
 ---
-id: 0003
+id: P0001
 title: Virtual Mac の入力転送経路には筆圧のフィールドが無い
 created: 2026-08-09
 verified: 2026-08-09

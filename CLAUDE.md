@@ -10,6 +10,7 @@
 ## 参照先
 
 - `docs/phase0-spec.md` — **今の作業内容と成功条件**
+- `docs/constraints.md` — 検査の一覧（ハーネス由来。編集しない）
 - `docs/rationale.md` — この環境固有の規約の理由、検査一覧
 - `MEMORY.md` — 過去に観測した事実の索引
 
@@ -79,11 +80,11 @@ Sources/IO/     副作用はここだけ
 
 - **シェル変数展開**: 日本語文字列内で `"$VAR」"` と書くと、bash が全角文字を
   変数名の一部と解釈し `unbound variable` になる。必ず `${VAR}` で囲む。
-  → `constraints/check-var-expansion.sh` が検出（`knowledge/0001`）
+  → `constraints/check-var-expansion.sh` が検出（`knowledge/H0001`）
 
 - **正規表現を含むルールの区切り**: `パターン|理由` 形式を `${rule%%|*}` で
   分解すると、パターン内の `|` で切れる。区切りには `@@` を使う
-  （`knowledge/0002`）
+  （`knowledge/H0002`）
 
 - **`plutil -extract` の失敗**: 失敗時にエラー文を**標準出力**へ吐く。
   戻り値を空判定すると、エラー文が値として通過する。
