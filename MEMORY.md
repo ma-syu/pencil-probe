@@ -3,7 +3,7 @@
 `knowledge/` の索引。**このファイルは生成物。直接編集しない。**
 再生成: `./scripts/memory-index.sh`
 
-生成日時: 2026-08-09 14:36:50
+生成日時: 2026-08-10 05:49:15
 
 ## 状態の意味
 
@@ -25,3 +25,4 @@
 | [0003](knowledge/0003-input-path-analysis.md) | Virtual Mac の入力転送経路には筆圧のフィールドが無い | unused | — | 0 |
 | [0004](knowledge/0004-claude-md-split.md) | CLAUDE.md を共通側とプロジェクト側に分割した（仮説・未検証） | unused | — | 0 |
 | [0005](knowledge/0005-proxy-metric-failure.md) | 代理指標（行数上限）が目的を侵食した | unused | — | 0 |
+| [0006](knowledge/0006-bsd-sed-multibyte.md) | macOS の BSD sed はマルチバイト文字で illegal byte sequence を起こす | unused | — | 0 |
