@@ -42,6 +42,9 @@ CWE-78、CWE-120、CWE-676。
 | `check-purity-boundary.sh` | `Core/` への副作用漏れ | `Sources/Core/` 作成後 |
 | `check-test-pairing.sh` | テストの存在・アサーション・プロパティテスト | 同上 |
 | `check-dependency-graph.sh` | 層をまたぐ依存の向き・循環依存 | `Sources/` 作成後 |
+| `check-declared-deps.sh` | 外部コマンド依存の宣言漏れ | 常時 |
+| `check-error-quality.sh` | 違反報告が構造化されているか | 常時 |
+| `check-module-boundary.sh` | Swift の層分離がビルドシステムで強制されているか | `Package.swift` 作成後 |
 
 対象ディレクトリが存在しない間は PASS を返す設計にしてある。
 着手前でも `check-all.sh` が通り、「まだ書いていないから FAIL」という
