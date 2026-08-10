@@ -9,7 +9,8 @@
 
 ## 参照先
 
-- `docs/phase0-spec.md` — **今の作業内容と成功条件**
+- `docs/phase0-spec.md` — Phase 0 の仕様と観測結果
+- `docs/phase1-spec.md` — **今の作業内容と成功条件**
 - `docs/constraints.md` — 検査の一覧（ハーネス由来。編集しない）
 - `docs/rationale.md` — この環境固有の規約の理由、検査一覧
 - `MEMORY.md` — 過去に観測した事実の索引
