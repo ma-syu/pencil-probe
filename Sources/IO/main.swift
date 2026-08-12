@@ -9,9 +9,11 @@ case "observe":
     runObserve()
 case "inject":
     runInject()
+case "relay":
+    runRelay()
 default:
     FileHandle.standardError.write(
-        Data("Usage: pencil-probe [observe|inject]\n".utf8)
+        Data("Usage: pencil-probe [observe|inject|relay]\n".utf8)
     )
     exit(1)
 }
@@ -40,6 +42,19 @@ func runObserve() -> Never {
     setlinebuf(stdout)
     CFRunLoopRun()
     exit(0)
+}
+
+// MARK: - Relay mode (Phase 2)
+
+func runRelay() -> Never {
+    var port: UInt16 = 9923
+    let args = Array(CommandLine.arguments.dropFirst(2))
+    if let idx = args.firstIndex(of: "--port"),
+       idx + 1 < args.count,
+       let p = UInt16(args[idx + 1]) {
+        port = p
+    }
+    RelayServer.run(port: port)
 }
 
 // MARK: - Inject mode (Phase 1, stage 0)
