@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Core
 
 /// Injects synthetic tablet events via CGEventPost.
@@ -126,35 +127,39 @@ enum TabletInjector {
         // 1. Proximity enter
         guard postProximity(proximity, at: position, source: source)
         else { return false }
+        Thread.sleep(forTimeInterval: 0.05)
 
         // 2. Mouse down with tablet pressure
         guard postTabletPoint(
             point, mouseType: .leftMouseDown,
             at: position, source: source
         ) else { return false }
+        Thread.sleep(forTimeInterval: 0.02)
 
-        // 3. A few drags to give apps time to sample
-        let dragCount = 5
+        // 3. Slow drags with visible displacement
+        let dragCount = 20
         for i in 1...dragCount {
-            let offset = CGFloat(i) * 2.0
+            let offset = CGFloat(i) * 5.0
             let dragPos = CGPoint(
-                x: position.x + offset, y: position.y
+                x: position.x + offset, y: position.y + offset
             )
             guard postTabletPoint(
                 point, mouseType: .leftMouseDragged,
                 at: dragPos, source: source
             ) else { return false }
+            Thread.sleep(forTimeInterval: 0.02)
         }
 
         // 4. Mouse up
+        let endPos = CGPoint(
+            x: position.x + CGFloat(dragCount) * 5.0,
+            y: position.y + CGFloat(dragCount) * 5.0
+        )
         guard postTabletPoint(
             point, mouseType: .leftMouseUp,
-            at: CGPoint(
-                x: position.x + CGFloat(dragCount) * 2.0,
-                y: position.y
-            ),
-            source: source
+            at: endPos, source: source
         ) else { return false }
+        Thread.sleep(forTimeInterval: 0.05)
 
         // 5. Proximity leave
         let leave = TabletProximityParams(

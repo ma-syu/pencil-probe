@@ -58,7 +58,17 @@ func runInject() {
     }
 
     let pressure = 0.5
-    let position = CGPoint(x: 400, y: 400)
+
+    // Give the user time to switch to the target app and place the cursor.
+    for i in (1...5).reversed() {
+        let cursor = CGEvent(source: nil)?.location ?? .zero
+        FileHandle.standardError.write(
+            Data("Injecting in \(i)... cursor at (\(Int(cursor.x)), \(Int(cursor.y))) — move to target canvas\n".utf8)
+        )
+        Thread.sleep(forTimeInterval: 1.0)
+    }
+
+    let position = CGEvent(source: nil)?.location ?? CGPoint(x: 400, y: 400)
 
     FileHandle.standardError.write(
         Data("Injecting test stroke: pressure=\(pressure) at \(position)\n".utf8)
