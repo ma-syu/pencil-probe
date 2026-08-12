@@ -23,13 +23,13 @@ public struct EventRecord: Sendable, Equatable {
     public let x: Double
     public let y: Double
 
-    /// Pressure from kCGMouseEventPressure (field 20). Range 0.0–1.0.
+    /// Pressure from kCGMouseEventPressure (field 2). Range 0.0–1.0.
     public let mousePressure: Double
 
-    /// Pressure from kCGTabletEventPointPressure (field 36). Integer 0–65535.
+    /// Pressure from kCGTabletEventPointPressure (field 19). Range 0.0–1.0.
     public let tabletPressure: Double
 
-    /// Tilt from kCGTabletEventTiltX / TiltY (fields 37, 38).
+    /// Tilt from kCGTabletEventTiltX / TiltY (fields 20, 21). Range -1.0–1.0.
     public let tiltX: Double
     public let tiltY: Double
 

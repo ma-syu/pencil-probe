@@ -16,7 +16,7 @@ import Testing
             x: Double.random(in: -1e4...1e4, using: &rng),
             y: Double.random(in: -1e4...1e4, using: &rng),
             mousePressure: Double.random(in: 0...1, using: &rng),
-            tabletPressure: Double.random(in: 0...65535, using: &rng),
+            tabletPressure: Double.random(in: 0...1, using: &rng),
             tiltX: Double.random(in: -1...1, using: &rng),
             tiltY: Double.random(in: -1...1, using: &rng)
         )

@@ -37,15 +37,9 @@ enum EventTap {
             x: event.location.x,
             y: event.location.y,
             mousePressure: event.getDoubleValueField(.mouseEventPressure),
-            tabletPressure: Double(
-                event.getIntegerValueField(.tabletEventPointPressure)
-            ),
-            tiltX: Double(
-                event.getIntegerValueField(.tabletEventTiltX)
-            ),
-            tiltY: Double(
-                event.getIntegerValueField(.tabletEventTiltY)
-            )
+            tabletPressure: event.getDoubleValueField(.tabletEventPointPressure),
+            tiltX: event.getDoubleValueField(.tabletEventTiltX),
+            tiltY: event.getDoubleValueField(.tabletEventTiltY)
         )
     }
 

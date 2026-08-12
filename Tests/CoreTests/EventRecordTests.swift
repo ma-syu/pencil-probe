@@ -15,7 +15,7 @@ import Testing
             let x = Double.random(in: -1e4...1e4, using: &rng)
             let y = Double.random(in: -1e4...1e4, using: &rng)
             let mp = Double.random(in: 0...1, using: &rng)
-            let tp = Double.random(in: 0...65535, using: &rng)
+            let tp = Double.random(in: 0...1, using: &rng)
             let tx = Double.random(in: -1...1, using: &rng)
             let ty = Double.random(in: -1...1, using: &rng)
 

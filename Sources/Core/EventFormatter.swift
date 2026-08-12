@@ -25,7 +25,7 @@ public enum EventFormatter {
         let x = String(format: "%.1f", record.x)
         let y = String(format: "%.1f", record.y)
         let mp = String(format: "%.4f", record.mousePressure)
-        let tp = String(format: "%.0f", record.tabletPressure)
+        let tp = String(format: "%.4f", record.tabletPressure)
         let tx = String(format: "%.4f", record.tiltX)
         let ty = String(format: "%.4f", record.tiltY)
         let sub = EventClassifier.subtypeName(record.subtype)
