@@ -45,15 +45,16 @@ func runObserve() -> Never {
 // MARK: - Inject mode (Phase 1, stage 0)
 
 func runInject() {
-    guard CGPreflightPostEventAccess() else {
+    if !CGPreflightPostEventAccess() {
         let msg = """
-            No permission to post events.
-            Grant Accessibility permission in:
+            Warning: CGPreflightPostEventAccess() returned false.
+            Events may not be delivered. If injection fails, grant
+            Accessibility permission in:
               System Settings > Privacy & Security > Accessibility
-            Then re-run this tool.
+            Attempting injection anyway...
+
             """
         FileHandle.standardError.write(Data(msg.utf8))
-        exit(1)
     }
 
     let pressure = 0.5
