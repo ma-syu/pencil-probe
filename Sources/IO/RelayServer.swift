@@ -7,18 +7,22 @@ import Core
 /// tablet events via CGEventPost.
 enum RelayServer {
 
-    static func run(port: UInt16) -> Never {
-        let fd = createListenSocket(port: port)
+    static func run(
+        listenAddr: String, port: UInt16, allowedPeer: String?
+    ) -> Never {
+        if listenAddr != "127.0.0.1" && allowedPeer == nil {
+            FileHandle.standardError.write(Data(
+                "Warning: listening on \(listenAddr) without --allow. Any host can connect.\n".utf8
+            ))
+        }
+        let fd = createListenSocket(listenAddr: listenAddr, port: port)
         FileHandle.standardError.write(
-            Data("Listening on 127.0.0.1:\(port)\n".utf8)
+            Data("Listening on \(listenAddr):\(port)\n".utf8)
         )
 
         while true {
-            let clientFd = accept(fd, nil, nil)
-            guard clientFd >= 0 else { continue }
-            FileHandle.standardError.write(
-                Data("Client connected\n".utf8)
-            )
+            guard let clientFd = acceptClient(fd, allowedPeer: allowedPeer)
+            else { continue }
             handleClient(clientFd)
             FileHandle.standardError.write(
                 Data("Client disconnected\n".utf8)
@@ -28,7 +32,9 @@ enum RelayServer {
 
     // MARK: - Private
 
-    private static func createListenSocket(port: UInt16) -> Int32 {
+    private static func createListenSocket(
+        listenAddr: String, port: UInt16
+    ) -> Int32 {
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else {
             fatalExit("Failed to create socket")
@@ -43,7 +49,7 @@ enum RelayServer {
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = port.bigEndian
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        addr.sin_addr.s_addr = inet_addr(listenAddr)
 
         let bound = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
@@ -53,7 +59,7 @@ enum RelayServer {
         guard bound == 0 else {
             let msg = String(cString: strerror(errno))
             Darwin.close(fd)
-            fatalExit("bind 127.0.0.1:\(port) failed: \(msg)")
+            fatalExit("bind \(listenAddr):\(port) failed: \(msg)")
         }
 
         guard listen(fd, 1) == 0 else {
@@ -63,6 +69,33 @@ enum RelayServer {
         }
 
         return fd
+    }
+
+    private static func acceptClient(
+        _ listenFd: Int32, allowedPeer: String?
+    ) -> Int32? {
+        var peerAddr = sockaddr_in()
+        var peerLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let clientFd = withUnsafeMutablePointer(to: &peerAddr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                accept(listenFd, $0, &peerLen)
+            }
+        }
+        guard clientFd >= 0 else { return nil }
+
+        let peerIP = String(cString: inet_ntoa(peerAddr.sin_addr))
+        if let allowed = allowedPeer, peerIP != allowed {
+            FileHandle.standardError.write(Data(
+                "Rejected \(peerIP) (allowed: \(allowed))\n".utf8
+            ))
+            Darwin.close(clientFd)
+            return nil
+        }
+
+        FileHandle.standardError.write(
+            Data("Client connected from \(peerIP)\n".utf8)
+        )
+        return clientFd
     }
 
     private static func handleClient(_ fd: Int32) {

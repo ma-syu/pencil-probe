@@ -48,13 +48,25 @@ func runObserve() -> Never {
 
 func runRelay() -> Never {
     var port: UInt16 = 9923
+    var listenAddr = "127.0.0.1"
+    var allowedPeer: String?
     let args = Array(CommandLine.arguments.dropFirst(2))
     if let idx = args.firstIndex(of: "--port"),
        idx + 1 < args.count,
        let p = UInt16(args[idx + 1]) {
         port = p
     }
-    RelayServer.run(port: port)
+    if let idx = args.firstIndex(of: "--listen"),
+       idx + 1 < args.count {
+        listenAddr = args[idx + 1]
+    }
+    if let idx = args.firstIndex(of: "--allow"),
+       idx + 1 < args.count {
+        allowedPeer = args[idx + 1]
+    }
+    RelayServer.run(
+        listenAddr: listenAddr, port: port, allowedPeer: allowedPeer
+    )
 }
 
 // MARK: - Inject mode (Phase 1, stage 0)
