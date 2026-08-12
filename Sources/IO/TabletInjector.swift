@@ -107,8 +107,88 @@ enum TabletInjector {
         return true
     }
 
+    /// Post a standalone kCGEventTabletPointer event (P0004 §7 form b).
+    /// This may trigger NSView.tabletPoint(with:) which form (a) does not.
+    static func postStandaloneTabletPoint(
+        _ params: TabletPointParams,
+        at position: CGPoint,
+        source: CGEventSource?
+    ) -> Bool {
+        // Create as mouse event, then change type to tabletPointer.
+        // CGEvent has no direct initializer for tablet events.
+        guard let event = CGEvent(
+            mouseEventSource: source,
+            mouseType: .mouseMoved,
+            mouseCursorPosition: position,
+            mouseButton: .left
+        ) else { return false }
+
+        event.type = .tabletPointer
+
+        event.setDoubleValueField(
+            .tabletEventPointPressure,
+            value: params.pressure
+        )
+        event.setDoubleValueField(.tabletEventTiltX, value: params.tiltX)
+        event.setDoubleValueField(.tabletEventTiltY, value: params.tiltY)
+        event.setIntegerValueField(
+            .tabletEventDeviceID,
+            value: Int64(params.deviceID)
+        )
+
+        event.post(tap: .cghidEventTap)
+        return true
+    }
+
+    /// Post a standalone kCGEventTabletProximity event (form b).
+    static func postStandaloneProximity(
+        _ params: TabletProximityParams,
+        at position: CGPoint,
+        source: CGEventSource?
+    ) -> Bool {
+        guard let event = CGEvent(
+            mouseEventSource: source,
+            mouseType: .mouseMoved,
+            mouseCursorPosition: position,
+            mouseButton: .left
+        ) else { return false }
+
+        event.type = .tabletProximity
+
+        event.setIntegerValueField(
+            .tabletProximityEventEnterProximity,
+            value: params.entering ? 1 : 0
+        )
+        event.setIntegerValueField(
+            .tabletProximityEventPointerType,
+            value: Int64(params.pointerType)
+        )
+        event.setIntegerValueField(
+            .tabletProximityEventDeviceID,
+            value: Int64(params.deviceID)
+        )
+        event.setIntegerValueField(
+            .tabletProximityEventCapabilityMask,
+            value: Int64(params.capabilityMask)
+        )
+        event.setIntegerValueField(
+            .tabletProximityEventVendorID,
+            value: Int64(params.vendorID)
+        )
+        event.setIntegerValueField(
+            .tabletProximityEventTabletID,
+            value: Int64(params.tabletID)
+        )
+
+        event.post(tap: .cghidEventTap)
+        return true
+    }
+
     /// Inject a single fixed-pressure stroke: proximity enter,
     /// mouseDown, a few drags, mouseUp, proximity leave.
+    ///
+    /// Posts both form (a) mouse+subtype and form (b) standalone tablet
+    /// events for each step, maximizing the chance that apps receive them.
     ///
     /// Returns true if all events were posted successfully.
     static func injectTestStroke(
@@ -124,19 +204,25 @@ enum TabletInjector {
             pressure: pressure, tiltX: 0, tiltY: 0, deviceID: deviceID
         )
 
-        // 1. Proximity enter
+        // 1. Proximity enter (both forms)
+        guard postStandaloneProximity(
+            proximity, at: position, source: source
+        ) else { return false }
         guard postProximity(proximity, at: position, source: source)
         else { return false }
         Thread.sleep(forTimeInterval: 0.05)
 
-        // 2. Mouse down with tablet pressure
+        // 2. Mouse down + standalone tablet point
         guard postTabletPoint(
             point, mouseType: .leftMouseDown,
             at: position, source: source
         ) else { return false }
+        guard postStandaloneTabletPoint(
+            point, at: position, source: source
+        ) else { return false }
         Thread.sleep(forTimeInterval: 0.02)
 
-        // 3. Slow drags with visible displacement
+        // 3. Slow drags with both forms
         let dragCount = 20
         for i in 1...dragCount {
             let offset = CGFloat(i) * 5.0
@@ -146,6 +232,9 @@ enum TabletInjector {
             guard postTabletPoint(
                 point, mouseType: .leftMouseDragged,
                 at: dragPos, source: source
+            ) else { return false }
+            guard postStandaloneTabletPoint(
+                point, at: dragPos, source: source
             ) else { return false }
             Thread.sleep(forTimeInterval: 0.02)
         }
@@ -161,10 +250,13 @@ enum TabletInjector {
         ) else { return false }
         Thread.sleep(forTimeInterval: 0.05)
 
-        // 5. Proximity leave
+        // 5. Proximity leave (both forms)
         let leave = TabletProximityParams(
             entering: false, deviceID: deviceID
         )
+        guard postStandaloneProximity(
+            leave, at: position, source: source
+        ) else { return false }
         guard postProximity(leave, at: position, source: source)
         else { return false }
 
