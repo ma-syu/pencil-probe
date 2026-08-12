@@ -4,7 +4,7 @@ title: Virtual Mac の入力転送経路には筆圧のフィールドが無い
 created: 2026-08-09
 verified: 2026-08-09
 constraint:
-relates: []
+relates: [P0003]
 ---
 
 ## 事実
@@ -79,6 +79,22 @@ A の未確認の前提は 2 つ。
 **2 は Virtual Mac を一切触らずに検証できる**（固定値の筆圧を注入して
 線の太さが変わるか見るだけ）。1 より先に 2 を確かめる方が、
 投資判断が早い。
+
+## 再検証: 上流 1.1.1（df4f50c）（2026-08-12）
+
+上流を 1.1.1（df4f50c）まで更新した。18,449 行追加、
+VirtualMacApp.m も 1,286 行変わったが、P0001 の結論は変わらない。
+
+- タッチ処理が書き直された（`directTouchKey` /
+  `beginDeferredDirectTouches` / `moveDeferredDirectTouches`）
+- ただし `if (touch.type != UITouchTypeDirect) continue;` で
+  **Apple Pencil は明示的に除外**されている
+- `touch.force` は依然として読まれていない
+- `_VZScreenCoordinatePointerEvent` の引数は座標とボタンのみ
+- Info.plist に `UIBackgroundModes` は無い（変更はバージョン番号のみ）
+
+Pencil の筆圧は「未実装」ではなく「意図的に扱っていない」可能性がある。
+上流に issue を立てる際はこの点を踏まえる。
 
 ## 参照
 
