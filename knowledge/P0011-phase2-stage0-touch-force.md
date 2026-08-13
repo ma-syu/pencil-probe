@@ -1,6 +1,9 @@
 # P0011: Phase 2 段階 0 — iPad で touch.force が取得できることを確認
+validity: current
+source_class: observation
+verified_at: 
+verified_against: 
 
-status: referenced
 refs: P0001, P0010
 date: 2026-08-13
 

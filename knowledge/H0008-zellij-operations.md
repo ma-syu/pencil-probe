@@ -5,6 +5,10 @@ created: 2026-08-12
 verified: 2026-08-12
 constraint:
 relates: []
+validity: current
+source_class: observation
+verified_at: 
+verified_against: 
 ---
 
 ## 実装の所在

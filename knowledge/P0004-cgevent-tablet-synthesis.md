@@ -5,6 +5,10 @@ created: 2026-08-10
 verified: 2026-08-10
 constraint:
 relates: [P0002, P0003]
+validity: current
+source_class: observation
+verified_at: 
+verified_against: 
 ---
 
 ## 出典
