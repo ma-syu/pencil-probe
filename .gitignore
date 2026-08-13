@@ -1,0 +1,15 @@
+# Build artifacts
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Runtime data
+*.log
+
+# Temporary files
+*.bak
+*.orig
+*.old
+*.tmp
