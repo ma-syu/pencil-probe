@@ -1,7 +1,5 @@
-diff --git a/VirtualMac/vz/host/VirtualMacApp.m b/VirtualMac/vz/host/VirtualMacApp.m
-index 7c6cb01..f0809c9 100644
---- a/VirtualMac/vz/host/VirtualMacApp.m
-+++ b/VirtualMac/vz/host/VirtualMacApp.m
+--- a/VirtualMac/vz/host/VirtualMacApp.m	2026-08-13 12:55:36
++++ b/VirtualMac/vz/host/VirtualMacApp.m	2026-08-13 12:55:36
 @@ -19,6 +19,10 @@
  #include <mach-o/loader.h>
  #include <errno.h>
@@ -13,16 +11,17 @@ index 7c6cb01..f0809c9 100644
  #include <spawn.h>
  #include <sys/wait.h>
  #include <unistd.h>
-@@ -1699,6 +1703,71 @@ static void sendSoftwareChord(UIKeyboardHIDUsage usage, BOOL shifted,
+@@ -1698,7 +1702,72 @@
+     sendPointer(point, self.bounds, activePointerButtons());
      [self resetDeferredDirectTouch];
  }
- 
++
 +// --- Pencil TCP relay ---
 +//
 +// Sends 13-byte packets to the guest VM relay server.
 +// Wire format (LE): type(u8) | pressure(f32) | x(f32) | y(f32)
 +// type: 0=point, 1=proximity_enter, 2=proximity_leave
-+
+ 
 +static int gPencilTcpFd = -1;
 +
 +static void pencilTcpConnect(void) {
@@ -85,9 +84,9 @@ index 7c6cb01..f0809c9 100644
  - (void)touchesBegan:(NSSet<UITouch *> *)touches
             withEvent:(UIEvent *)event
  {
-@@ -1746,6 +1815,17 @@ static void sendSoftwareChord(UIKeyboardHIDUsage usage, BOOL shifted,
-         printf("[VirtualMac] touch began type=%ld buttons=0x%lx\n",
-                (long)touch.type, (unsigned long)gTouchButtons);
+@@ -1707,6 +1776,18 @@
+         [self beginDeferredDirectTouches:touches withEvent:event];
+         return;
      }
 +    for (UITouch *t in touches) {
 +        if (t.type == UITouchTypeStylus) {
@@ -98,12 +97,13 @@ index 7c6cb01..f0809c9 100644
 +            float nx = (b.size.width > 0) ? (float)(p.x / b.size.width) : 0;
 +            float ny = (b.size.height > 0) ? (float)(p.y / b.size.height) : 0;
 +            pencilTcpSend(1, pressure, nx, ny);
++            return;
 +        }
 +    }
- }
-
- - (void)touchesMoved:(NSSet<UITouch *> *)touches
-@@ -1756,6 +1836,17 @@ static void sendSoftwareChord(UIKeyboardHIDUsage usage, BOOL shifted,
+     if (touch) {
+         // Hardware trackpad clicks reach a UIKit view as indirect-pointer
+         // touches even when GameController exposes no GCMouse. Preserve
+@@ -1756,6 +1837,18 @@
          [self moveDeferredDirectTouches:touches withEvent:event];
          return;
      }
@@ -116,12 +116,13 @@ index 7c6cb01..f0809c9 100644
 +            float nx = (b.size.width > 0) ? (float)(p.x / b.size.width) : 0;
 +            float ny = (b.size.height > 0) ? (float)(p.y / b.size.height) : 0;
 +            pencilTcpSend(0, pressure, nx, ny);
++            return;
 +        }
 +    }
      if (touch) {
          NSUInteger eventButtons = (NSUInteger)event.buttonMask & 0x7U;
          if (eventButtons)
-@@ -1780,6 +1871,15 @@ static void sendSoftwareChord(UIKeyboardHIDUsage usage, BOOL shifted,
+@@ -1780,6 +1873,16 @@
  - (void)touchesEnded:(NSSet<UITouch *> *)touches
             withEvent:(UIEvent *)event
  {
@@ -132,6 +133,7 @@ index 7c6cb01..f0809c9 100644
 +            float nx = (b.size.width > 0) ? (float)(p.x / b.size.width) : 0;
 +            float ny = (b.size.height > 0) ? (float)(p.y / b.size.height) : 0;
 +            pencilTcpSend(2, 0, nx, ny);
++            return;
 +        }
 +    }
      UITouch *touch = [touches anyObject];
