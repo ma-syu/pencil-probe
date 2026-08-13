@@ -1,6 +1,6 @@
 # 現在の状態
 
-updated: 2026-08-13T16:25+09:00
+updated: 2026-08-13T16:45+09:00
 
 ## フェーズ
 
@@ -24,10 +24,19 @@ Phase 2 段階 3（結合テスト）。段階 0-2 は完了。
 
 - Pencil リフト時の余計な線 → パッチ v2 で修正済み（テスト待ち）
 
+## 残件（記憶システム）
+
+- [ ] MEMORY.md 冪等性 constraint（再生成 → diff 空で検査）
+- [ ] 温度計算スクリプト（events.tsv → 温度スコア → 索引生成）
+- [ ] verified_against の意味的検査（空でない場合に形式を検証）
+- [ ] 索引の溢れ件数出力（silent truncation 禁止）
+- [ ] memory/index-full.md（MEMORY.md から溢れた索引の中間層）
+
 ## 意図ログ
 
 - 2026-08-13T15:40 記憶システムの constraint + knowledge/ フィールド追加（完了）
 - 2026-08-13T15:40 CLAUDE.md にブートストラップ記述追加（完了）
 - 2026-08-13T15:40 memory/current.md 作成（完了）
 - 2026-08-13T16:25 session-start hook に記憶システム統合（完了）
-- 2026-08-13T16:25 iPad に VirtualMac.app v2 デプロイ → 結合テスト（次の一手）
+- 2026-08-13T16:35 hook 消失検出 constraint 追加（完了）
+- 2026-08-13T16:45 iPad に VirtualMac.app v2 デプロイ → 結合テスト（次の一手）

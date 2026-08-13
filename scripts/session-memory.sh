@@ -20,6 +20,13 @@
 set -uo pipefail
 
 readonly PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+
+readonly -a REQUIRED_COMMANDS=(git grep sed)
+if [[ -f "${PROJECT_ROOT}/scripts/lib/require.sh" ]]; then
+    source "${PROJECT_ROOT}/scripts/lib/require.sh"
+    require_commands "${REQUIRED_COMMANDS[@]}" || exit 1
+fi
+
 cd "${PROJECT_ROOT}" || exit 0
 
 # --- 現在の状態 ---------------------------------------------------------------
@@ -47,6 +54,17 @@ if [[ -f ./memory/current.md ]] && grep -q '^- ' ./memory/current.md; then
     git log --oneline -3 2>/dev/null | sed 's/^/  /'
 else
     printf '（意図ログなし）\n'
+fi
+
+# --- 残件 ---------------------------------------------------------------------
+# memory/current.md に未完了（- [ ]）の項目があれば表示する。
+# 黙って消えるのを防ぐ。
+if [[ -f ./memory/current.md ]]; then
+    open_items="$(grep -c '^\- \[ \]' ./memory/current.md 2>/dev/null || true)"
+    if (( open_items > 0 )); then
+        printf '\n## 残件 (%d 件)\n' "${open_items}"
+        grep '^\- \[ \]' ./memory/current.md
+    fi
 fi
 
 # --- read イベント抽出 --------------------------------------------------------
