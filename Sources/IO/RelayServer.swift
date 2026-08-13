@@ -5,6 +5,17 @@ import Core
 
 /// TCP relay server that receives PencilPacket data and injects
 /// tablet events via CGEventPost.
+///
+/// Why TCP (not UDP): TCP guarantees ordered, reliable delivery.
+/// A lost or reordered packet would cause a misaligned read on
+/// the fixed-size 13-byte protocol, corrupting all subsequent
+/// events. TCP's stream semantics prevent this at the cost of
+/// slightly higher latency — but on a LAN the difference is
+/// sub-millisecond.
+///
+/// Why single-threaded: only one Apple Pencil connects at a time,
+/// and CGEventPost is not documented as thread-safe. A single
+/// accept loop with blocking reads is the simplest correct design.
 enum RelayServer {
 
     static func run(
@@ -20,6 +31,9 @@ enum RelayServer {
             Data("Listening on \(listenAddr):\(port)\n".utf8)
         )
 
+        // Block on accept; when a client disconnects, loop back and
+        // wait for the next one. Only one client is served at a time
+        // because there is only one cursor to control.
         while true {
             guard let clientFd = acceptClient(fd, allowedPeer: allowedPeer)
             else { continue }
@@ -40,6 +54,9 @@ enum RelayServer {
             fatalExit("Failed to create socket")
         }
 
+        // SO_REUSEADDR: allow rebinding immediately after the relay
+        // is restarted. Without this, the port stays in TIME_WAIT
+        // for ~60 seconds after the previous process exits.
         var opt: Int32 = 1
         setsockopt(
             fd, SOL_SOCKET, SO_REUSEADDR, &opt,
@@ -71,6 +88,13 @@ enum RelayServer {
         return fd
     }
 
+    /// Accept a client connection, rejecting any peer not in the allow list.
+    ///
+    /// Why IP-based filtering: this is a defense-in-depth measure, not
+    /// the sole security boundary. The relay listens on a specific
+    /// interface (not 0.0.0.0), and --allow restricts which IP can
+    /// connect. On a bridged LAN, this prevents other devices from
+    /// injecting mouse/tablet events into the guest VM.
     private static func acceptClient(
         _ listenFd: Int32, allowedPeer: String?
     ) -> Int32? {
@@ -99,16 +123,26 @@ enum RelayServer {
     }
 
     private static func handleClient(_ fd: Int32) {
+        // TCP_NODELAY: disable Nagle's algorithm so each 13-byte packet
+        // is sent immediately. Without this, TCP may buffer small writes
+        // and wait up to 40ms before sending, adding visible drawing
+        // latency.
         var nodelay: Int32 = 1
         setsockopt(
             fd, IPPROTO_TCP, TCP_NODELAY, &nodelay,
             socklen_t(MemoryLayout<Int32>.size)
         )
 
+        // privateState: our synthetic events don't affect the global
+        // event state machine. This prevents our injected mouse-down
+        // from interfering with the user's real mouse state.
         let source = CGEventSource(stateID: .privateState)
         let deviceID = 1
+        // Screen size is read once per connection. If the display
+        // resolution changes mid-session, the client must reconnect.
         let screen = CGDisplayBounds(CGMainDisplayID()).size
 
+        // Pre-allocate the read buffer to avoid per-event allocation.
         var buf = [UInt8](repeating: 0, count: PencilPacket.size)
         while readExact(fd, into: &buf, count: PencilPacket.size) {
             guard let packet = PencilPacket.decode(from: buf) else {
@@ -156,6 +190,15 @@ enum RelayServer {
         }
     }
 
+    /// Post both forms of tablet proximity event.
+    ///
+    /// Why two forms: macOS apps receive tablet events in two ways:
+    /// (a) mouse events with subtype tabletProximity — delivered via
+    ///     NSEvent.mouseDown etc., used by most Carbon-era apps
+    /// (b) standalone kCGEventTabletProximity — triggers NSView's
+    ///     tabletProximity(with:) method, used by some Cocoa apps
+    /// Clip Studio Paint requires form (b). Posting both ensures
+    /// compatibility with the widest range of drawing apps (P0010).
     private static func postProximityPair(
         entering: Bool, deviceID: Int,
         at pos: CGPoint, source: CGEventSource?
@@ -171,6 +214,10 @@ enum RelayServer {
         )
     }
 
+    /// Post both forms of tablet point event (with pressure data).
+    ///
+    /// Same reasoning as postProximityPair: two delivery paths exist
+    /// in macOS, and different apps listen on different ones.
     private static func postPointPair(
         pressure: Double, deviceID: Int,
         mouseType: CGEventType,
@@ -187,6 +234,12 @@ enum RelayServer {
         )
     }
 
+    /// Read exactly `count` bytes, looping on partial reads.
+    ///
+    /// Why loop: TCP is a stream protocol. A single read() may return
+    /// fewer bytes than requested (e.g. 5 of 13) even on a LAN.
+    /// Without looping, the packet boundary shifts and all subsequent
+    /// decodes produce garbage.
     private static func readExact(
         _ fd: Int32, into buf: inout [UInt8], count: Int
     ) -> Bool {

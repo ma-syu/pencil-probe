@@ -45,13 +45,20 @@ public struct TabletProximityParams: Sendable, Equatable {
     public let deviceID: Int
 
     /// Pointer type: 1 = pen, 3 = eraser (IOLLEvent.h).
+    /// Default is pen. Apps use this to switch between draw and erase modes.
     public let pointerType: Int
 
     /// Bitmask of device capabilities (IOLLEvent.h NX_TABLET_CAPABILITY_*).
-    /// Phase 1 minimum: 0x0587 (deviceID, absX, absY, buttons, tiltX, tiltY, pressure).
+    ///
+    /// Why 0x0587: this tells apps which tablet fields are valid.
+    /// 0x0587 = deviceID | absX | absY | buttons | tiltX | tiltY | pressure.
+    /// Without this mask, apps ignore the pressure field entirely
+    /// because they don't know the device supports it (P0004 §3).
     public let capabilityMask: UInt32
 
-    /// Vendor ID (typically USB vendor ID). Arbitrary for synthetic events.
+    /// Vendor ID (typically USB vendor ID). Arbitrary for synthetic events
+    /// because we are not impersonating a real hardware device. Apps do
+    /// not use this for pressure handling.
     public let vendorID: Int
 
     /// Tablet ID (typically USB product ID). Arbitrary for synthetic events.

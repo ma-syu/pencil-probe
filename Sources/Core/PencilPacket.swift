@@ -1,4 +1,9 @@
 /// Event type in the pencil relay protocol.
+///
+/// Maps to UIKit touch lifecycle: the host (iPad) sends proximityEnter
+/// when the Pencil first touches the screen, point events while dragging,
+/// and proximityLeave when lifted. These map to macOS tablet proximity
+/// and tablet-point events on the guest side (see TabletInjector).
 public enum PencilEventType: UInt8, Sendable {
     /// Pen dragging on screen (touchesMoved).
     case point = 0
@@ -15,6 +20,17 @@ public enum PencilEventType: UInt8, Sendable {
 ///   [1..4]   float32 pressure (0.0–1.0)
 ///   [5..8]   float32 x (0.0–1.0, normalized)
 ///   [9..12]  float32 y (0.0–1.0, normalized)
+///
+/// Why 13 bytes: fixed-size packets simplify parsing (no framing,
+/// no length prefix, no delimiter). At 240Hz this is ~3.1KB/s,
+/// well within LAN bandwidth.
+///
+/// Why little-endian: both iOS (ARM) and macOS on Apple Silicon use
+/// little-endian natively. No byte-swapping needed on either side.
+///
+/// Why normalized 0–1 coordinates: the host and guest may have different
+/// screen resolutions. Normalizing on the host and denormalizing on the
+/// guest keeps the protocol resolution-independent.
 public struct PencilPacket: Sendable, Equatable {
     public static let size = 13
 
@@ -25,6 +41,10 @@ public struct PencilPacket: Sendable, Equatable {
 
     public init(type: PencilEventType, pressure: Float, x: Float, y: Float) {
         self.type = type
+        // Clamp to 0–1 at the boundary: the host may send slightly
+        // out-of-range values due to float rounding, and the guest
+        // CGEvent fields expect this range. Clamping here prevents
+        // nonsensical pressure or coordinates from reaching the OS.
         self.pressure = PencilPacket.clamp01(pressure)
         self.x = PencilPacket.clamp01(x)
         self.y = PencilPacket.clamp01(y)
@@ -50,6 +70,9 @@ public struct PencilPacket: Sendable, Equatable {
         let p = readFloat32LE(from: bytes, at: 1)
         let xVal = readFloat32LE(from: bytes, at: 5)
         let yVal = readFloat32LE(from: bytes, at: 9)
+        // Reject NaN/Inf: these are valid IEEE 754 bit patterns that
+        // could arrive over TCP (malformed sender or corruption).
+        // Passing them to CGEvent would produce undefined behavior.
         guard p.isFinite && xVal.isFinite && yVal.isFinite else {
             return nil
         }

@@ -4,10 +4,20 @@ import Core
 
 /// Injects synthetic tablet events via CGEventPost.
 ///
+/// Why CGEventPost: Virtualization.framework's VZPointerDeviceConfiguration
+/// only supports mouse events — there is no API for tablet pressure or
+/// tilt. CGEventPost bypasses this limitation by injecting events directly
+/// into the macOS event system from within the guest (P0004).
+///
 /// Follows the synthesis procedure from P0004:
 /// 1. Proximity event (enter) — tells apps a tablet pen is present
 /// 2. Mouse events with subtype tabletPoint — carries pressure/tilt
 /// 3. Proximity event (leave) — signals pen departure
+///
+/// Two forms are posted for each event (see postProximity vs
+/// postStandaloneProximity) because macOS delivers tablet events
+/// through two separate paths. Different apps listen on different
+/// paths, so posting both maximizes compatibility (P0010).
 enum TabletInjector {
 
     /// Post a tablet proximity event (enter or leave).
@@ -85,7 +95,10 @@ enum TabletInjector {
             value: 1 // kCGEventMouseSubtypeTabletPoint
         )
 
-        // Set both pressure fields — apps may read either (P0004 §1).
+        // Set both pressure fields because apps may read either:
+        // - tabletEventPointPressure: the "official" tablet pressure field
+        // - mouseEventPressure: some apps read this instead, likely
+        //   because NSEvent.pressure maps to it (P0004 §1, P0009).
         event.setDoubleValueField(
             .tabletEventPointPressure,
             value: params.pressure
@@ -108,7 +121,13 @@ enum TabletInjector {
     }
 
     /// Post a standalone kCGEventTabletPointer event (P0004 §7 form b).
-    /// This may trigger NSView.tabletPoint(with:) which form (a) does not.
+    ///
+    /// Why a separate "standalone" form: macOS has two tablet delivery
+    /// paths. Form (a) is a mouse event with subtype=tabletPoint, which
+    /// flows through NSEvent.mouseDown/mouseDragged. Form (b) is a
+    /// native kCGEventTabletPointer, which triggers NSView.tabletPoint(with:).
+    /// Clip Studio Paint specifically requires form (b) to recognize
+    /// pressure (P0010). We post both forms for maximum compatibility.
     static func postStandaloneTabletPoint(
         _ params: TabletPointParams,
         at position: CGPoint,
@@ -184,82 +203,4 @@ enum TabletInjector {
         return true
     }
 
-    /// Inject a single fixed-pressure stroke: proximity enter,
-    /// mouseDown, a few drags, mouseUp, proximity leave.
-    ///
-    /// Posts both form (a) mouse+subtype and form (b) standalone tablet
-    /// events for each step, maximizing the chance that apps receive them.
-    ///
-    /// Returns true if all events were posted successfully.
-    static func injectTestStroke(
-        pressure: Double,
-        at position: CGPoint
-    ) -> Bool {
-        let source = CGEventSource(stateID: .privateState)
-        let deviceID = 1
-        let proximity = TabletProximityParams(
-            entering: true, deviceID: deviceID
-        )
-        let point = TabletPointParams(
-            pressure: pressure, tiltX: 0, tiltY: 0, deviceID: deviceID
-        )
-
-        // 1. Proximity enter (both forms)
-        guard postStandaloneProximity(
-            proximity, at: position, source: source
-        ) else { return false }
-        guard postProximity(proximity, at: position, source: source)
-        else { return false }
-        Thread.sleep(forTimeInterval: 0.05)
-
-        // 2. Mouse down + standalone tablet point
-        guard postTabletPoint(
-            point, mouseType: .leftMouseDown,
-            at: position, source: source
-        ) else { return false }
-        guard postStandaloneTabletPoint(
-            point, at: position, source: source
-        ) else { return false }
-        Thread.sleep(forTimeInterval: 0.02)
-
-        // 3. Slow drags with both forms
-        let dragCount = 20
-        for i in 1...dragCount {
-            let offset = CGFloat(i) * 5.0
-            let dragPos = CGPoint(
-                x: position.x + offset, y: position.y + offset
-            )
-            guard postTabletPoint(
-                point, mouseType: .leftMouseDragged,
-                at: dragPos, source: source
-            ) else { return false }
-            guard postStandaloneTabletPoint(
-                point, at: dragPos, source: source
-            ) else { return false }
-            Thread.sleep(forTimeInterval: 0.02)
-        }
-
-        // 4. Mouse up
-        let endPos = CGPoint(
-            x: position.x + CGFloat(dragCount) * 5.0,
-            y: position.y + CGFloat(dragCount) * 5.0
-        )
-        guard postTabletPoint(
-            point, mouseType: .leftMouseUp,
-            at: endPos, source: source
-        ) else { return false }
-        Thread.sleep(forTimeInterval: 0.05)
-
-        // 5. Proximity leave (both forms)
-        let leave = TabletProximityParams(
-            entering: false, deviceID: deviceID
-        )
-        guard postStandaloneProximity(
-            leave, at: position, source: source
-        ) else { return false }
-        guard postProximity(leave, at: position, source: source)
-        else { return false }
-
-        return true
-    }
 }
