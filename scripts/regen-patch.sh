@@ -8,6 +8,15 @@
 
 set -euo pipefail
 
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+readonly -a REQUIRED_COMMANDS=(git python3 diff patch)
+if [[ -f "${PROJECT_ROOT}/scripts/lib/require.sh" ]]; then
+    source "${PROJECT_ROOT}/scripts/lib/require.sh"
+    require_commands "${REQUIRED_COMMANDS[@]}" || exit 1
+fi
+
 UPSTREAM=~/projects/VirtualMacOniPad
 ORIG_COMMIT=9056beb   # upstream 1.1.2, pre-patch
 FILE=VirtualMac/vz/host/VirtualMacApp.m

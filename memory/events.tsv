@@ -1,0 +1,41 @@
+# 記憶システム イベント列（追記専用）
+# 形式: TSV（タブ区切り）
+# カラム: timestamp	actor	id	kind	note
+#
+# kind: read / hit / miss / fix / supersede / retract
+# actor: ai / human / system
+#
+# read は Claude Code の JSONL セッションログから機械抽出する。
+# scripts/extract-reads.sh が抽出し、(timestamp, id) で重複排除する。
+#
+# このファイルが消えると温度が全リセットされる。git で追跡すること。
+# /tmp に置かないこと（macOS が定期的に掃除する）。
+2026-08-10T08:10:56.189Z	ai	P0002-opendisplay-prior-art	read	
+2026-08-10T08:10:56.338Z	ai	P0003-phase0-observation	read	
+2026-08-10T08:27:38.196Z	ai	P0005-vacuous-pass	read	
+2026-08-10T08:30:12.003Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-10T08:31:07.233Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-10T08:38:17.470Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-10T08:38:43.237Z	ai	P0005-vacuous-pass	read	
+2026-08-10T08:40:18.300Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-10T08:41:36.909Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-10T08:42:44.689Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-10T08:43:43.382Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-10T08:50:13.337Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-10T13:53:29.136Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-12T00:36:39.545Z	ai	P0003-phase0-observation	read	
+2026-08-12T06:30:52.073Z	ai	H0006-harness-distribution-contamination	read	
+2026-08-12T06:46:03.992Z	ai	P0001-input-path-analysis	read	
+2026-08-12T06:46:04.019Z	ai	P0007-xcode26-installation	read	
+2026-08-12T06:50:18.639Z	ai	P0004-cgevent-tablet-synthesis	read	
+2026-08-12T08:05:36.742Z	ai	H0008-zellij-operations	read	
+2026-08-12T08:11:53.977Z	ai	H0008-zellij-operations	read	
+2026-08-12T09:22:05.025Z	ai	H0008-zellij-operations	read	
+2026-08-12T09:26:21.267Z	ai	H0008-zellij-operations	read	
+2026-08-12T12:53:18.643Z	ai	P0001-input-path-analysis	read	
+2026-08-12T16:19:09.292Z	ai	P0011-phase2-stage0-touch-force	read	
+2026-08-12T16:19:09.393Z	ai	P0010-phase1-app-verification	read	
+2026-08-13T01:08:16.142Z	ai	P0011-phase2-stage0-touch-force	read	
+2026-08-13T02:49:47.339Z	ai	P0011-phase2-stage0-touch-force	read	
+2026-08-13T06:57:24.904Z	ai	P0011-phase2-stage0-touch-force	read	
+2026-08-13T07:16:15.404Z	ai	P0011-phase2-stage0-touch-force	read	

@@ -14,9 +14,51 @@
 - `docs/phase2-spec.md` — **今の作業内容と成功条件**
 - `docs/constraints.md` — 検査の一覧（ハーネス由来。編集しない）
 - `docs/rationale.md` — この環境固有の規約の理由、検査一覧
-- `MEMORY.md` — 過去に観測した事実の索引
+- `MEMORY.md` — 温度上位の索引（生成物。直接編集しない）
 
 汎用的な規約とその理由は `~/.claude/CLAUDE.md` と `~/.claude/docs/` にある。
+
+---
+
+## 記憶システム
+
+### 構造
+
+| 層 | 変化速度 | 場所 | 性質 |
+|---|---|---|---|
+| 不変 | ほぼ変わらない | `CLAUDE.md`, `constraints/` | 指示・検査 |
+| 決定 | 裁定ごと | `knowledge/` | 追記専用（観測は新ファイルで supersede） |
+| 現在 | 毎セッション | `memory/current.md` | 意図・次の一手・デプロイ状態 |
+| 索引 | 生成物 | `MEMORY.md` | 温度上位 K 件。手書き禁止 |
+
+### knowledge/ の必須フィールド
+
+```yaml
+validity: current | superseded | retracted
+source_class: observation | decision | procedure
+verified_at:         # 最後に実物と照合した日時（空可）
+verified_against:    # 何と照合したか（空可。無いと検証が反証不能）
+```
+
+- `status:` は廃止。`constraints/check-knowledge-fields.sh` が検査する
+- `validity: superseded` → `superseded_by:` 必須
+- `validity: retracted` → `retracted_reason:` 必須。削除はしない
+  （撤回された記憶は撤回済みと分かる形で残す。消すと同じ間違いを再発明する）
+
+### 意図の記録
+
+**行動の前に意図を書く。** `memory/current.md` の `## 意図ログ` に
+1 行追記してから作業を開始する。session-start で前回の意図と
+git log を照合し、完了していない意図を引き継ぐ。
+
+session-end は検出できないため、「終わりに書く」設計に頼らない。
+突然終了しても、次回の session-start 照合で復帰する。
+
+### 温度（未実装、設計済み）
+
+温度は `memory/events.tsv` のイベント列から都度計算する（保存しない）。
+イベントは Claude Code の JSONL セッションログから read を機械抽出する。
+詳細は `memory/events.tsv` のヘッダを参照。
 
 ---
 
