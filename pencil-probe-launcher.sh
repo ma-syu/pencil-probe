@@ -1,10 +1,14 @@
 #!/bin/sh
+set -u
 # pencil-probe-launcher.sh
-# LaunchAgent から呼ばれ、config を読んでバイナリを起動する。
+# Called by LaunchAgent. Reads config and launches the binary.
 #
-# WHY ラッパー: LaunchAgent の plist は静的 XML で変数を使えない。
-# config ファイルを読むことで、plist を再登録せずに
-# IP/ポートを変更できる。
+# WHY a wrapper: LaunchAgent plists are static XML with no variable
+# support. This script reads ~/.config/pencil-probe.conf so users can
+# change the listen IP/port without re-registering the LaunchAgent.
+#
+# WHY set -u only (no pipefail): /bin/sh is POSIX sh where pipefail
+# is not available. This script must run under /bin/sh.
 
 CONFIG="${HOME}/.config/pencil-probe.conf"
 
@@ -16,12 +20,12 @@ if [ ! -f "${CONFIG}" ]; then
     exit 1
 fi
 
-# config を読み込む。LISTEN と PORT が定義される。
+# Source the config. Defines LISTEN and PORT.
 . "${CONFIG}"
 
-# WHY exec: ラッパーのプロセスをバイナリで置き換える。
-# launchctl が管理する PID が直接 pencil-probe を指すので、
-# シグナル配送や KeepAlive の再起動判定が正しく動く。
+# WHY exec: replaces the wrapper process with the binary so that
+# the PID launchctl manages points directly to pencil-probe.
+# This ensures signals and KeepAlive restart work correctly.
 exec "${HOME}/bin/pencil-probe" \
     --listen "${LISTEN:-127.0.0.1}" \
     --port "${PORT:-9949}"

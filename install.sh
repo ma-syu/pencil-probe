@@ -1,16 +1,34 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
-# install.sh — pencil-probe のインストール・アンインストール
+# install.sh — Install or uninstall pencil-probe
 #
 # Usage:
 #   curl -fsSL https://github.com/ma-syu/pencil-probe/releases/latest/download/install.sh | sh
-#   curl -fsSL ... | sh -s -- 192.168.1.2          # IP 指定（非対話）
-#   curl -fsSL ... | sh -s -- 192.168.1.2 9950     # IP + ポート指定
-#   curl -fsSL ... | sh -s uninstall                # アンインストール
+#   curl -fsSL ... | sh -s -- 192.168.1.2          # non-interactive with IP
+#   curl -fsSL ... | sh -s -- 192.168.1.2 9950     # non-interactive with IP + port
+#   curl -fsSL ... | sh -s uninstall               # uninstall
 #
-# WHY curl | sh: ユーザが最小の手順でインストールできるようにする。
-# バイナリのダウンロード、配置、LaunchAgent 登録を 1 コマンドで完了する。
+# WHY curl | sh: minimize the number of steps for users.
+# Downloads the binary, places it in ~/bin/, creates a config file,
+# and registers a LaunchAgent — all in one command.
+
+# External command dependencies.
+# curl/wget: either one is sufficient (OPTIONAL).
+# launchctl: macOS-specific but always present on the target platform.
+readonly -a REQUIRED_COMMANDS=(launchctl)
+readonly -a OPTIONAL_COMMANDS=(curl wget)
+for cmd in "${REQUIRED_COMMANDS[@]}"; do
+    if ! command -v "${cmd}" >/dev/null 2>&1; then
+        echo "Error: required command not found: ${cmd}" >&2
+        exit 1
+    fi
+done
+# Either curl or wget is required
+if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+    echo "Error: curl or wget is required" >&2
+    exit 1
+fi
 
 REPO="ma-syu/pencil-probe"
 BIN_DIR="${HOME}/bin"
@@ -23,11 +41,11 @@ PLIST_DIR="${HOME}/Library/LaunchAgents"
 PLIST="${PLIST_DIR}/${PLIST_NAME}"
 DEFAULT_PORT=9949
 
-# --- アンインストール ---
+# --- Uninstall ---
 if [ "${1:-}" = "uninstall" ]; then
     echo "=== pencil-probe uninstall ==="
 
-    # LaunchAgent を停止・解除
+    # Stop and unregister the LaunchAgent
     if launchctl list "${PLIST_NAME%.plist}" >/dev/null 2>&1; then
         launchctl bootout "gui/$(id -u)" "${PLIST}" 2>/dev/null || true
         echo "  LaunchAgent stopped"
@@ -37,7 +55,7 @@ if [ "${1:-}" = "uninstall" ]; then
     rm -f "${BIN}"     && echo "  Removed: ${BIN}"
     rm -f "${LAUNCHER}" && echo "  Removed: ${LAUNCHER}"
 
-    # config は残す（再インストール時に設定を引き継ぐため）
+    # Keep the config file so re-install preserves settings
     if [ -f "${CONFIG}" ]; then
         echo "  Kept: ${CONFIG} (remove manually if not needed)"
     fi
@@ -48,7 +66,7 @@ fi
 
 echo "=== pencil-probe install ==="
 
-# --- バイナリのダウンロード ---
+# --- Download binary ---
 mkdir -p "${BIN_DIR}"
 
 echo "  Downloading pencil-probe..."
@@ -64,7 +82,7 @@ fi
 chmod +x "${BIN}"
 echo "  Installed: ${BIN}"
 
-# --- ラッパースクリプトのダウンロード ---
+# --- Download launcher script ---
 LAUNCHER_URL="https://github.com/${REPO}/releases/latest/download/pencil-probe-launcher.sh"
 if command -v curl >/dev/null 2>&1; then
     curl -fsSL -o "${LAUNCHER}" "${LAUNCHER_URL}"
@@ -74,15 +92,14 @@ fi
 chmod +x "${LAUNCHER}"
 echo "  Installed: ${LAUNCHER}"
 
-# --- 設定ファイルの作成 ---
-# 引数で IP/ポートが指定されていればそれを使う。
-# なければ既存の config からデフォルト値を読む。
-# どちらもなければ対話的に聞く。
+# --- Create config file ---
+# Priority: command-line args > existing config > interactive prompt.
+# On re-run, existing values are shown as defaults.
 
 LISTEN=""
 PORT=""
 
-# 既存の config があればデフォルト値として読む
+# Read existing config for default values
 if [ -f "${CONFIG}" ]; then
     . "${CONFIG}" 2>/dev/null || true
     OLD_LISTEN="${LISTEN:-}"
@@ -94,7 +111,7 @@ else
     OLD_PORT="${DEFAULT_PORT}"
 fi
 
-# 引数から取得
+# From command-line arguments
 if [ $# -ge 1 ] && [ "${1:-}" != "uninstall" ]; then
     LISTEN="$1"
 fi
@@ -102,7 +119,7 @@ if [ $# -ge 2 ]; then
     PORT="$2"
 fi
 
-# 対話的に聞く（引数がなく、tty が使える場合）
+# Interactive prompt (only when stdin is a tty and no args given)
 if [ -z "${LISTEN}" ]; then
     if [ -t 0 ]; then
         if [ -n "${OLD_LISTEN}" ]; then
@@ -127,11 +144,11 @@ if [ -z "${PORT}" ]; then
     fi
 fi
 
-# IP が空なら中断（必須）
+# Listen IP is required — abort if still empty
 if [ -z "${LISTEN}" ]; then
     echo "Error: Listen IP is required." >&2
     echo "  Re-run with: sh install.sh <guest-ip>" >&2
-    # バイナリは入ったので config だけ作ればよい
+    # Binary is already installed; only the config is missing
     exit 1
 fi
 
@@ -145,7 +162,7 @@ PORT=${PORT:-${DEFAULT_PORT}}
 EOF
 echo "  Config: ${CONFIG} (LISTEN=${LISTEN}, PORT=${PORT:-${DEFAULT_PORT}})"
 
-# --- LaunchAgent の登録 ---
+# --- Register LaunchAgent ---
 mkdir -p "${PLIST_DIR}"
 
 PLIST_URL="https://github.com/${REPO}/releases/latest/download/${PLIST_NAME}"
@@ -155,7 +172,7 @@ else
     wget -qO "${PLIST}" "${PLIST_URL}"
 fi
 
-# 既に動いていたら停止
+# Stop if already running
 if launchctl list "${PLIST_NAME%.plist}" >/dev/null 2>&1; then
     launchctl bootout "gui/$(id -u)" "${PLIST}" 2>/dev/null || true
 fi
