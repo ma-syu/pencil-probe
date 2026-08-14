@@ -122,6 +122,19 @@ Connection settings (environment variables):
 | 5–8    | float32 | X (0.0–1.0, normalized)              |
 | 9–12   | float32 | Y (0.0–1.0, normalized)              |
 
+## Verify downloads
+
+SHA256 checksums are available in the
+[release assets](https://github.com/ma-syu/pencil-probe/releases/latest).
+
+```sh
+# Download the checksums file
+curl -fsSLO https://github.com/ma-syu/pencil-probe/releases/latest/download/SHA256SUMS
+
+# Verify a downloaded file
+shasum -a 256 -c SHA256SUMS
+```
+
 ## License
 
 MIT
