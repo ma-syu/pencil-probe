@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- WHY ラッパー経由: plist は静的 XML で変数を使えない。
+         ラッパーが ~/.config/pencil-probe.conf を読むことで、
+         plist を書き換えずに IP/ポートを変更できる。 -->
+    <key>Label</key>
+    <string>com.pencil-probe</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <!-- ~/bin/ はシェル展開されないため $HOME を使う。
+             install.sh が実際のパスに置換する。 -->
+        <string>exec $HOME/bin/pencil-probe-launcher.sh</string>
+    </array>
+
+    <!-- WHY KeepAlive: pencil-probe はデーモンとして常駐する。
+         クラッシュや切断で終了しても自動で再起動し、
+         次の Pencil 接続を待ち受ける。 -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- WHY RunAtLoad: ログイン時に自動起動する。
+         ユーザが明示的に起動する手間を省く。 -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/pencil-probe.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/pencil-probe.log</string>
+</dict>
+</plist>
