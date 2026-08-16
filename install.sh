@@ -155,9 +155,9 @@ fi
 if [ -z "${ALLOW}" ]; then
     if [ -t 0 ]; then
         if [ -n "${OLD_ALLOW}" ]; then
-            printf "  Allow IP (restrict to this client) [%s]: " "${OLD_ALLOW}"
+            printf "  Allow IP (iPad IP) [%s]: " "${OLD_ALLOW}"
         else
-            printf "  Allow IP (restrict to this client, Enter to skip): "
+            printf "  Allow IP (iPad IP): "
         fi
         read -r ALLOW
         [ -z "${ALLOW}" ] && ALLOW="${OLD_ALLOW}"
@@ -171,6 +171,15 @@ if [ -z "${LISTEN}" ]; then
     echo "Error: Listen IP is required." >&2
     echo "  Re-run with: sh install.sh <guest-ip>" >&2
     # Binary is already installed; only the config is missing
+    exit 1
+fi
+
+# WHY: listening on a non-loopback address without --allow means any host
+# on the LAN can send input events to the guest. This is an actual attack
+# surface because VirtualMac uses bridged networking.
+if [ "${LISTEN}" != "127.0.0.1" ] && [ -z "${ALLOW}" ]; then
+    echo "Error: Allow IP is required when listening on ${LISTEN}." >&2
+    echo "  Re-run with: sh install.sh <guest-ip> <port> <iPad-ip>" >&2
     exit 1
 fi
 
