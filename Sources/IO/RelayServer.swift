@@ -50,9 +50,7 @@ enum RelayServer {
         listenAddr: String, port: UInt16
     ) -> Int32 {
         let fd = socket(AF_INET, SOCK_STREAM, 0)
-        guard fd >= 0 else {
-            fatalExit("Failed to create socket")
-        }
+        guard fd >= 0 else { fatalExit("Failed to create socket") }
 
         // SO_REUSEADDR: allow rebinding immediately after the relay
         // is restarted. Without this, the port stays in TIME_WAIT
@@ -63,29 +61,31 @@ enum RelayServer {
             socklen_t(MemoryLayout<Int32>.size)
         )
 
+        bindOrExit(fd, listenAddr: listenAddr, port: port)
+        guard listen(fd, 1) == 0 else {
+            Darwin.close(fd)
+            fatalExit("listen failed: \(String(cString: strerror(errno)))")
+        }
+        return fd
+    }
+
+    private static func bindOrExit(
+        _ fd: Int32, listenAddr: String, port: UInt16
+    ) {
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = port.bigEndian
         addr.sin_addr.s_addr = inet_addr(listenAddr)
 
-        let bound = withUnsafePointer(to: &addr) { ptr in
+        let result = withUnsafePointer(to: &addr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
-        guard bound == 0 else {
-            let msg = String(cString: strerror(errno))
+        guard result == 0 else {
             Darwin.close(fd)
-            fatalExit("bind \(listenAddr):\(port) failed: \(msg)")
+            fatalExit("bind \(listenAddr):\(port) failed: \(String(cString: strerror(errno)))")
         }
-
-        guard listen(fd, 1) == 0 else {
-            let msg = String(cString: strerror(errno))
-            Darwin.close(fd)
-            fatalExit("listen failed: \(msg)")
-        }
-
-        return fd
     }
 
     /// Accept a client connection, rejecting any peer not in the allow list.
@@ -163,6 +163,10 @@ enum RelayServer {
         source: CGEventSource?,
         deviceID: Int
     ) {
+        let pointParams = TabletPointParams(
+            pressure: Double(packet.pressure),
+            tiltX: 0, tiltY: 0, deviceID: deviceID
+        )
         switch packet.type {
         case .proximityEnter:
             postProximityPair(
@@ -170,18 +174,21 @@ enum RelayServer {
                 at: pos, source: source
             )
             postPointPair(
-                pressure: Double(packet.pressure), deviceID: deviceID,
-                mouseType: .leftMouseDown, at: pos, source: source
+                pointParams, mouseType: .leftMouseDown,
+                at: pos, source: source
             )
         case .point:
             postPointPair(
-                pressure: Double(packet.pressure), deviceID: deviceID,
-                mouseType: .leftMouseDragged, at: pos, source: source
+                pointParams, mouseType: .leftMouseDragged,
+                at: pos, source: source
             )
         case .proximityLeave:
+            let release = TabletPointParams(
+                pressure: 0, tiltX: 0, tiltY: 0, deviceID: deviceID
+            )
             postPointPair(
-                pressure: 0, deviceID: deviceID,
-                mouseType: .leftMouseUp, at: pos, source: source
+                release, mouseType: .leftMouseUp,
+                at: pos, source: source
             )
             postProximityPair(
                 entering: false, deviceID: deviceID,
@@ -219,13 +226,10 @@ enum RelayServer {
     /// Same reasoning as postProximityPair: two delivery paths exist
     /// in macOS, and different apps listen on different ones.
     private static func postPointPair(
-        pressure: Double, deviceID: Int,
+        _ params: TabletPointParams,
         mouseType: CGEventType,
         at pos: CGPoint, source: CGEventSource?
     ) {
-        let params = TabletPointParams(
-            pressure: pressure, tiltX: 0, tiltY: 0, deviceID: deviceID
-        )
         _ = TabletInjector.postTabletPoint(
             params, mouseType: mouseType, at: pos, source: source
         )

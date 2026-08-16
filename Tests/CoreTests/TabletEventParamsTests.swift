@@ -98,23 +98,11 @@ import Testing
 
 @Suite struct TabletProximityParamsTests {
 
-    // Property: all fields are preserved through init.
+    // Property: all fields are preserved through init, constants are correct.
     @Test func fieldPreservation() {
-        let p = TabletProximityParams(
-            entering: true, deviceID: 42, pointerType: 3,
-            capabilityMask: 0x0FFF, vendorID: 99, tabletID: 88
-        )
+        let p = TabletProximityParams(entering: true, deviceID: 42)
         #expect(p.entering == true)
         #expect(p.deviceID == 42)
-        #expect(p.pointerType == 3)
-        #expect(p.capabilityMask == 0x0FFF)
-        #expect(p.vendorID == 99)
-        #expect(p.tabletID == 88)
-    }
-
-    // Property: defaults match Phase 1 minimum values.
-    @Test func defaults() {
-        let p = TabletProximityParams(entering: true, deviceID: 1)
         #expect(p.pointerType == 1)
         #expect(p.capabilityMask == 0x0587)
         #expect(p.vendorID == 1)

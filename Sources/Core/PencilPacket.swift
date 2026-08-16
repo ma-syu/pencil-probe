@@ -73,7 +73,7 @@ public struct PencilPacket: Sendable, Equatable {
         // Reject NaN/Inf: these are valid IEEE 754 bit patterns that
         // could arrive over TCP (malformed sender or corruption).
         // Passing them to CGEvent would produce undefined behavior.
-        guard p.isFinite && xVal.isFinite && yVal.isFinite else {
+        guard [p, xVal, yVal].allSatisfy(\.isFinite) else {
             return nil
         }
         return PencilPacket(
