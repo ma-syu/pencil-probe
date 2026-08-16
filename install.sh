@@ -159,6 +159,7 @@ cat > "${CONFIG}" <<EOF
 #   launchctl kickstart -k gui/\$(id -u)/com.pencil-probe
 LISTEN=${LISTEN}
 PORT=${PORT:-${DEFAULT_PORT}}
+# ALLOW=<iPad IP>  # uncomment to restrict connections to a single IP
 EOF
 echo "  Config: ${CONFIG} (LISTEN=${LISTEN}, PORT=${PORT:-${DEFAULT_PORT}})"
 

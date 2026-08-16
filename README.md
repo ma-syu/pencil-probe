@@ -53,6 +53,7 @@ Edit `~/.config/pencil-probe.conf`:
 ```
 LISTEN=<guest-ip>
 PORT=9949
+# ALLOW=<iPad-ip>  # restrict connections to a single IP
 ```
 
 Apply changes:

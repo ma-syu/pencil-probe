@@ -20,12 +20,19 @@ if [ ! -f "${CONFIG}" ]; then
     exit 1
 fi
 
-# Source the config. Defines LISTEN and PORT.
+# Source the config. Defines LISTEN, PORT, and optionally ALLOW.
 . "${CONFIG}"
+
+ALLOW_ARGS=""
+if [ -n "${ALLOW:-}" ]; then
+    ALLOW_ARGS="--allow ${ALLOW}"
+fi
 
 # WHY exec: replaces the wrapper process with the binary so that
 # the PID launchctl manages points directly to pencil-probe.
 # This ensures signals and KeepAlive restart work correctly.
+# shellcheck disable=SC2086
 exec "${HOME}/bin/pencil-probe" \
     --listen "${LISTEN:-127.0.0.1}" \
-    --port "${PORT:-9949}"
+    --port "${PORT:-9949}" \
+    ${ALLOW_ARGS}
