@@ -5,16 +5,25 @@ import Core
 // pencil-probe: relay tool for Apple Pencil pressure on macOS guest
 // VMs running under VirtualMac on iPad.
 //
-// Receives Pencil data (pressure, tilt) from the host iPad over
-// vsock (VZVirtioSocketDevice) and injects tablet events in real
-// time via CGEventPost.
+// Receives Pencil data (pressure, tilt) from iPad over TCP and
+// injects tablet events in real time via CGEventPost.
 
-var port: UInt32 = 9949
+var port: UInt16 = 9949
+var listenAddr = "127.0.0.1"
+var allowedPeer: String?
 let args = Array(CommandLine.arguments.dropFirst())
 if let idx = args.firstIndex(of: "--port"),
    idx + 1 < args.count,
-   let p = UInt32(args[idx + 1]) {
+   let p = UInt16(args[idx + 1]) {
     port = p
+}
+if let idx = args.firstIndex(of: "--listen"),
+   idx + 1 < args.count {
+    listenAddr = args[idx + 1]
+}
+if let idx = args.firstIndex(of: "--allow"),
+   idx + 1 < args.count {
+    allowedPeer = args[idx + 1]
 }
 // AXIsProcessTrusted: check if we have accessibility permission,
 // which is required for CGEventPost to deliver events to other apps.
@@ -36,4 +45,6 @@ if !AXIsProcessTrusted() {
     ))
 }
 
-RelayServer.run(port: port)
+RelayServer.run(
+    listenAddr: listenAddr, port: port, allowedPeer: allowedPeer
+)
