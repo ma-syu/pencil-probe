@@ -7,6 +7,7 @@ set -euo pipefail
 #   curl -fsSL https://github.com/ma-syu/pencil-probe/releases/latest/download/install.sh | sh
 #   curl -fsSL ... | sh -s -- 192.168.1.2          # non-interactive with IP
 #   curl -fsSL ... | sh -s -- 192.168.1.2 9950     # non-interactive with IP + port
+#   curl -fsSL ... | sh -s -- 192.168.1.2 9950 192.168.1.3  # with allowed client IP
 #   curl -fsSL ... | sh -s uninstall               # uninstall
 #
 # WHY curl | sh: minimize the number of steps for users.
@@ -98,17 +99,21 @@ echo "  Installed: ${LAUNCHER}"
 
 LISTEN=""
 PORT=""
+ALLOW=""
 
 # Read existing config for default values
 if [ -f "${CONFIG}" ]; then
     . "${CONFIG}" 2>/dev/null || true
     OLD_LISTEN="${LISTEN:-}"
     OLD_PORT="${PORT:-${DEFAULT_PORT}}"
+    OLD_ALLOW="${ALLOW:-}"
     LISTEN=""
     PORT=""
+    ALLOW=""
 else
     OLD_LISTEN=""
     OLD_PORT="${DEFAULT_PORT}"
+    OLD_ALLOW=""
 fi
 
 # From command-line arguments
@@ -117,6 +122,9 @@ if [ $# -ge 1 ] && [ "${1:-}" != "uninstall" ]; then
 fi
 if [ $# -ge 2 ]; then
     PORT="$2"
+fi
+if [ $# -ge 3 ]; then
+    ALLOW="$3"
 fi
 
 # Interactive prompt (only when stdin is a tty and no args given)
@@ -144,6 +152,20 @@ if [ -z "${PORT}" ]; then
     fi
 fi
 
+if [ -z "${ALLOW}" ]; then
+    if [ -t 0 ]; then
+        if [ -n "${OLD_ALLOW}" ]; then
+            printf "  Allow IP (restrict to this client) [%s]: " "${OLD_ALLOW}"
+        else
+            printf "  Allow IP (restrict to this client, Enter to skip): "
+        fi
+        read -r ALLOW
+        [ -z "${ALLOW}" ] && ALLOW="${OLD_ALLOW}"
+    else
+        ALLOW="${OLD_ALLOW}"
+    fi
+fi
+
 # Listen IP is required — abort if still empty
 if [ -z "${LISTEN}" ]; then
     echo "Error: Listen IP is required." >&2
@@ -159,9 +181,9 @@ cat > "${CONFIG}" <<EOF
 #   launchctl kickstart -k gui/\$(id -u)/com.pencil-probe
 LISTEN=${LISTEN}
 PORT=${PORT:-${DEFAULT_PORT}}
-# ALLOW=<iPad IP>  # uncomment to restrict connections to a single IP
+$([ -n "${ALLOW}" ] && echo "ALLOW=${ALLOW}" || echo "# ALLOW=  # set to restrict connections to a single IP")
 EOF
-echo "  Config: ${CONFIG} (LISTEN=${LISTEN}, PORT=${PORT:-${DEFAULT_PORT}})"
+echo "  Config: ${CONFIG} (LISTEN=${LISTEN}, PORT=${PORT:-${DEFAULT_PORT}}${ALLOW:+, ALLOW=${ALLOW}})"
 
 # --- Register LaunchAgent ---
 mkdir -p "${PLIST_DIR}"
