@@ -5,10 +5,8 @@ set -euo pipefail
 #
 # Usage:
 #   curl -fsSL https://github.com/ma-syu/pencil-probe/releases/latest/download/install.sh | sh
-#   curl -fsSL ... | sh -s -- 192.168.1.2          # non-interactive with IP
-#   curl -fsSL ... | sh -s -- 192.168.1.2 9950     # non-interactive with IP + port
-#   curl -fsSL ... | sh -s -- 192.168.1.2 9950 192.168.1.3  # with allowed client IP
-#   curl -fsSL ... | sh -s uninstall               # uninstall
+#   curl -fsSL ... | sh -s -- 9950                  # non-interactive with port
+#   curl -fsSL ... | sh -s uninstall                # uninstall
 #
 # WHY curl | sh: minimize the number of steps for users.
 # Downloads the binary, places it in ~/bin/, creates a config file,
@@ -96,55 +94,31 @@ echo "  Installed: ${LAUNCHER}"
 # --- Create config file ---
 # Priority: command-line args > existing config > interactive prompt.
 # On re-run, existing values are shown as defaults.
+#
+# Vsock needs only a port number. No IP address or access control
+# is needed because vsock is VM-internal — only the host (iPad)
+# can connect through Virtualization.framework.
 
-LISTEN=""
 PORT=""
-ALLOW=""
 
 # Read existing config for default values
 if [ -f "${CONFIG}" ]; then
     . "${CONFIG}" 2>/dev/null || true
-    OLD_LISTEN="${LISTEN:-}"
     OLD_PORT="${PORT:-${DEFAULT_PORT}}"
-    OLD_ALLOW="${ALLOW:-}"
-    LISTEN=""
     PORT=""
-    ALLOW=""
 else
-    OLD_LISTEN=""
     OLD_PORT="${DEFAULT_PORT}"
-    OLD_ALLOW=""
 fi
 
 # From command-line arguments
 if [ $# -ge 1 ] && [ "${1:-}" != "uninstall" ]; then
-    LISTEN="$1"
-fi
-if [ $# -ge 2 ]; then
-    PORT="$2"
-fi
-if [ $# -ge 3 ]; then
-    ALLOW="$3"
+    PORT="$1"
 fi
 
 # Interactive prompt (only when stdin is a tty and no args given)
-if [ -z "${LISTEN}" ]; then
-    if [ -t 0 ]; then
-        if [ -n "${OLD_LISTEN}" ]; then
-            printf "  Listen IP [%s]: " "${OLD_LISTEN}"
-        else
-            printf "  Listen IP (guest macOS IP): "
-        fi
-        read -r LISTEN
-        [ -z "${LISTEN}" ] && LISTEN="${OLD_LISTEN}"
-    else
-        LISTEN="${OLD_LISTEN}"
-    fi
-fi
-
 if [ -z "${PORT}" ]; then
     if [ -t 0 ]; then
-        printf "  Port [%s]: " "${OLD_PORT}"
+        printf "  Vsock port [%s]: " "${OLD_PORT}"
         read -r PORT
         [ -z "${PORT}" ] && PORT="${OLD_PORT}"
     else
@@ -152,47 +126,14 @@ if [ -z "${PORT}" ]; then
     fi
 fi
 
-if [ -z "${ALLOW}" ]; then
-    if [ -t 0 ]; then
-        if [ -n "${OLD_ALLOW}" ]; then
-            printf "  Allow IP (iPad IP) [%s]: " "${OLD_ALLOW}"
-        else
-            printf "  Allow IP (iPad IP): "
-        fi
-        read -r ALLOW
-        [ -z "${ALLOW}" ] && ALLOW="${OLD_ALLOW}"
-    else
-        ALLOW="${OLD_ALLOW}"
-    fi
-fi
-
-# Listen IP is required — abort if still empty
-if [ -z "${LISTEN}" ]; then
-    echo "Error: Listen IP is required." >&2
-    echo "  Re-run with: sh install.sh <guest-ip>" >&2
-    # Binary is already installed; only the config is missing
-    exit 1
-fi
-
-# WHY: listening on a non-loopback address without --allow means any host
-# on the LAN can send input events to the guest. This is an actual attack
-# surface because VirtualMac uses bridged networking.
-if [ "${LISTEN}" != "127.0.0.1" ] && [ -z "${ALLOW}" ]; then
-    echo "Error: Allow IP is required when listening on ${LISTEN}." >&2
-    echo "  Re-run with: sh install.sh <guest-ip> <port> <iPad-ip>" >&2
-    exit 1
-fi
-
 mkdir -p "${CONFIG_DIR}"
 cat > "${CONFIG}" <<EOF
 # pencil-probe configuration
 # Edit this file and restart the LaunchAgent to apply changes:
 #   launchctl kickstart -k gui/\$(id -u)/com.pencil-probe
-LISTEN=${LISTEN}
 PORT=${PORT:-${DEFAULT_PORT}}
-$([ -n "${ALLOW}" ] && echo "ALLOW=${ALLOW}" || echo "# ALLOW=  # set to restrict connections to a single IP")
 EOF
-echo "  Config: ${CONFIG} (LISTEN=${LISTEN}, PORT=${PORT:-${DEFAULT_PORT}}${ALLOW:+, ALLOW=${ALLOW}})"
+echo "  Config: ${CONFIG} (PORT=${PORT:-${DEFAULT_PORT}})"
 
 # --- Register LaunchAgent ---
 mkdir -p "${PLIST_DIR}"
@@ -215,7 +156,7 @@ echo "  LaunchAgent registered and started"
 echo ""
 echo "=== Done ==="
 echo ""
-echo "pencil-probe is now running."
+echo "pencil-probe is now running (vsock port ${PORT:-${DEFAULT_PORT}})."
 echo "  Config: ${CONFIG}"
 echo "  Log:    /tmp/pencil-probe.log"
 echo ""

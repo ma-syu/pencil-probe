@@ -13,7 +13,7 @@ public enum PencilEventType: UInt8, Sendable {
     case proximityLeave = 2
 }
 
-/// A 13-byte binary packet for relaying Apple Pencil data over TCP.
+/// A 13-byte binary packet for relaying Apple Pencil data over vsock.
 ///
 /// Wire format (little-endian):
 ///   [0]      uint8   type (0=point, 1=enter, 2=leave)
@@ -71,7 +71,7 @@ public struct PencilPacket: Sendable, Equatable {
         let xVal = readFloat32LE(from: bytes, at: 5)
         let yVal = readFloat32LE(from: bytes, at: 9)
         // Reject NaN/Inf: these are valid IEEE 754 bit patterns that
-        // could arrive over TCP (malformed sender or corruption).
+        // could arrive over vsock (malformed sender or corruption).
         // Passing them to CGEvent would produce undefined behavior.
         guard [p, xVal, yVal].allSatisfy(\.isFinite) else {
             return nil
