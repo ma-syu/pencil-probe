@@ -13,3 +13,6 @@ xcuserdata/
 *.orig
 *.old
 *.tmp
+
+# gen-version.sh が生成
+Sources/IO/Version.swift
