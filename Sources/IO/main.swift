@@ -8,10 +8,34 @@ import Core
 // Receives Pencil data (pressure, tilt) from iPad over TCP and
 // injects tablet events in real time via CGEventPost.
 
+let args = Array(CommandLine.arguments.dropFirst())
+
+if args.contains("--version") {
+    print("pencil-probe \(Version.string)")
+    exit(0)
+}
+
+if args.contains("--help") || args.contains("-h") {
+    print("""
+    Usage: pencil-probe [OPTIONS]
+
+    Apple Pencil pressure relay for macOS guest VMs.
+    Receives Pencil data from iPad over TCP and injects tablet events
+    via CGEventPost.
+
+    Options:
+      --port <PORT>     Listen port (default: 9949)
+      --listen <ADDR>   Listen address (default: 127.0.0.1)
+      --allow <ADDR>    Restrict connections to this IP
+      --version         Show version and exit
+      -h, --help        Show this help and exit
+    """)
+    exit(0)
+}
+
 var port: UInt16 = 9949
 var listenAddr = "127.0.0.1"
 var allowedPeer: String?
-let args = Array(CommandLine.arguments.dropFirst())
 if let idx = args.firstIndex(of: "--port"),
    idx + 1 < args.count,
    let p = UInt16(args[idx + 1]) {
