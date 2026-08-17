@@ -3,39 +3,32 @@ import Darwin
 import Foundation
 import Core
 
-/// TCP relay server that receives PencilPacket data and injects
+/// Vsock relay server that receives PencilPacket data and injects
 /// tablet events via CGEventPost.
 ///
-/// Why TCP (not UDP): TCP guarantees ordered, reliable delivery.
-/// A lost or reordered packet would cause a misaligned read on
-/// the fixed-size 13-byte protocol, corrupting all subsequent
-/// events. TCP's stream semantics prevent this at the cost of
-/// slightly higher latency — but on a LAN the difference is
-/// sub-millisecond.
+/// Why vsock: the host (iPad) and guest (macOS VM) communicate
+/// through Virtualization.framework's VZVirtioSocketDevice.
+/// Vsock provides ordered, reliable, stream-oriented delivery
+/// (like TCP) without requiring network configuration or IP
+/// addresses. The guest binds to a vsock port; the host connects
+/// via VZVirtioSocketDevice.connectToPort:.
 ///
 /// Why single-threaded: only one Apple Pencil connects at a time,
 /// and CGEventPost is not documented as thread-safe. A single
 /// accept loop with blocking reads is the simplest correct design.
 enum RelayServer {
 
-    static func run(
-        listenAddr: String, port: UInt16, allowedPeer: String?
-    ) -> Never {
-        if listenAddr != "127.0.0.1" && allowedPeer == nil {
-            FileHandle.standardError.write(Data(
-                "Warning: listening on \(listenAddr) without --allow. Any host can connect.\n".utf8
-            ))
-        }
-        let fd = createListenSocket(listenAddr: listenAddr, port: port)
+    static func run(port: UInt32) -> Never {
+        let fd = createListenSocket(port: port)
         FileHandle.standardError.write(
-            Data("Listening on \(listenAddr):\(port)\n".utf8)
+            Data("Listening on vsock port \(port)\n".utf8)
         )
 
         // Block on accept; when a client disconnects, loop back and
         // wait for the next one. Only one client is served at a time
         // because there is only one cursor to control.
         while true {
-            guard let clientFd = acceptClient(fd, allowedPeer: allowedPeer)
+            guard let clientFd = acceptClient(fd)
             else { continue }
             handleClient(clientFd)
             FileHandle.standardError.write(
@@ -46,22 +39,26 @@ enum RelayServer {
 
     // MARK: - Private
 
-    private static func createListenSocket(
-        listenAddr: String, port: UInt16
-    ) -> Int32 {
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
-        guard fd >= 0 else { fatalExit("Failed to create socket") }
+    private static func createListenSocket(port: UInt32) -> Int32 {
+        let fd = socket(AF_VSOCK, SOCK_STREAM, 0)
+        guard fd >= 0 else { fatalExit("Failed to create vsock socket") }
 
-        // SO_REUSEADDR: allow rebinding immediately after the relay
-        // is restarted. Without this, the port stays in TIME_WAIT
-        // for ~60 seconds after the previous process exits.
-        var opt: Int32 = 1
-        setsockopt(
-            fd, SOL_SOCKET, SO_REUSEADDR, &opt,
-            socklen_t(MemoryLayout<Int32>.size)
-        )
+        var addr = sockaddr_vm()
+        addr.svm_len = UInt8(MemoryLayout<sockaddr_vm>.size)
+        addr.svm_family = sa_family_t(AF_VSOCK)
+        addr.svm_port = port
+        // VMADDR_CID_ANY: accept connections from any CID (the host).
+        addr.svm_cid = UInt32(VMADDR_CID_ANY)
 
-        bindOrExit(fd, listenAddr: listenAddr, port: port)
+        let result = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(fd, $0, socklen_t(MemoryLayout<sockaddr_vm>.size))
+            }
+        }
+        guard result == 0 else {
+            Darwin.close(fd)
+            fatalExit("bind vsock port \(port) failed: \(String(cString: strerror(errno)))")
+        }
         guard listen(fd, 1) == 0 else {
             Darwin.close(fd)
             fatalExit("listen failed: \(String(cString: strerror(errno)))")
@@ -69,37 +66,14 @@ enum RelayServer {
         return fd
     }
 
-    private static func bindOrExit(
-        _ fd: Int32, listenAddr: String, port: UInt16
-    ) {
-        var addr = sockaddr_in()
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = port.bigEndian
-        addr.sin_addr.s_addr = inet_addr(listenAddr)
-
-        let result = withUnsafePointer(to: &addr) { ptr in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
-            }
-        }
-        guard result == 0 else {
-            Darwin.close(fd)
-            fatalExit("bind \(listenAddr):\(port) failed: \(String(cString: strerror(errno)))")
-        }
-    }
-
-    /// Accept a client connection, rejecting any peer not in the allow list.
+    /// Accept a client connection on the vsock listener.
     ///
-    /// Why IP-based filtering: this is a defense-in-depth measure, not
-    /// the sole security boundary. The relay listens on a specific
-    /// interface (not 0.0.0.0), and --allow restricts which IP can
-    /// connect. On a bridged LAN, this prevents other devices from
-    /// injecting mouse/tablet events into the guest VM.
-    private static func acceptClient(
-        _ listenFd: Int32, allowedPeer: String?
-    ) -> Int32? {
-        var peerAddr = sockaddr_in()
-        var peerLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+    /// Vsock connections can only originate from the host
+    /// (Virtualization.framework), so no IP-based filtering is needed.
+    /// The transport is VM-internal and not exposed to the network.
+    private static func acceptClient(_ listenFd: Int32) -> Int32? {
+        var peerAddr = sockaddr_vm()
+        var peerLen = socklen_t(MemoryLayout<sockaddr_vm>.size)
         let clientFd = withUnsafeMutablePointer(to: &peerAddr) { ptr in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 accept(listenFd, $0, &peerLen)
@@ -107,32 +81,13 @@ enum RelayServer {
         }
         guard clientFd >= 0 else { return nil }
 
-        let peerIP = String(cString: inet_ntoa(peerAddr.sin_addr))
-        if let allowed = allowedPeer, peerIP != allowed {
-            FileHandle.standardError.write(Data(
-                "Rejected \(peerIP) (allowed: \(allowed))\n".utf8
-            ))
-            Darwin.close(clientFd)
-            return nil
-        }
-
         FileHandle.standardError.write(
-            Data("Client connected from \(peerIP)\n".utf8)
+            Data("Client connected (CID \(peerAddr.svm_cid))\n".utf8)
         )
         return clientFd
     }
 
     private static func handleClient(_ fd: Int32) {
-        // TCP_NODELAY: disable Nagle's algorithm so each 13-byte packet
-        // is sent immediately. Without this, TCP may buffer small writes
-        // and wait up to 40ms before sending, adding visible drawing
-        // latency.
-        var nodelay: Int32 = 1
-        setsockopt(
-            fd, IPPROTO_TCP, TCP_NODELAY, &nodelay,
-            socklen_t(MemoryLayout<Int32>.size)
-        )
-
         // privateState: our synthetic events don't affect the global
         // event state machine. This prevents our injected mouse-down
         // from interfering with the user's real mouse state.
@@ -240,10 +195,10 @@ enum RelayServer {
 
     /// Read exactly `count` bytes, looping on partial reads.
     ///
-    /// Why loop: TCP is a stream protocol. A single read() may return
-    /// fewer bytes than requested (e.g. 5 of 13) even on a LAN.
-    /// Without looping, the packet boundary shifts and all subsequent
-    /// decodes produce garbage.
+    /// Why loop: vsock (like TCP) is a stream protocol. A single
+    /// read() may return fewer bytes than requested. Without looping,
+    /// the packet boundary shifts and all subsequent decodes produce
+    /// garbage.
     private static func readExact(
         _ fd: Int32, into buf: inout [UInt8], count: Int
     ) -> Bool {
