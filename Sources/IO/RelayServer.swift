@@ -97,7 +97,6 @@ enum RelayServer {
         // resolution changes mid-session, the client must reconnect.
         let screen = CGDisplayBounds(CGMainDisplayID()).size
 
-        // Pre-allocate the read buffer to avoid per-event allocation.
         var buf = [UInt8](repeating: 0, count: PencilPacket.size)
         while readExact(fd, into: &buf, count: PencilPacket.size) {
             guard let packet = PencilPacket.decode(from: buf) else {
@@ -118,9 +117,12 @@ enum RelayServer {
         source: CGEventSource?,
         deviceID: Int
     ) {
+        let (tiltX, tiltY) = TiltConversion.toTiltXY(
+            altitude: packet.altitude, azimuth: packet.azimuth
+        )
         let pointParams = TabletPointParams(
             pressure: Double(packet.pressure),
-            tiltX: 0, tiltY: 0, deviceID: deviceID
+            tiltX: tiltX, tiltY: tiltY, deviceID: deviceID
         )
         switch packet.type {
         case .proximityEnter:
@@ -139,7 +141,7 @@ enum RelayServer {
             )
         case .proximityLeave:
             let release = TabletPointParams(
-                pressure: 0, tiltX: 0, tiltY: 0, deviceID: deviceID
+                pressure: 0, tiltX: tiltX, tiltY: tiltY, deviceID: deviceID
             )
             postPointPair(
                 release, mouseType: .leftMouseUp,

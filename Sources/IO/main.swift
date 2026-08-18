@@ -9,6 +9,10 @@ import Core
 // vsock (VZVirtioSocketDevice) and injects tablet events in real
 // time via CGEventPost.
 
+/// Default vsock port. Must match kPencilVsockPort on the host
+/// (VirtualMacApp.m). Configurable via --port for testing.
+let defaultVsockPort: UInt32 = 9949
+
 let args = Array(CommandLine.arguments.dropFirst())
 
 if args.contains("--version") {
@@ -25,14 +29,14 @@ if args.contains("--help") || args.contains("-h") {
     events via CGEventPost.
 
     Options:
-      --port <PORT>     Vsock port (default: 9949)
+      --port <PORT>     Vsock port (default: \(defaultVsockPort))
       --version         Show version and exit
       -h, --help        Show this help and exit
     """)
     exit(0)
 }
 
-var port: UInt32 = 9949
+var port: UInt32 = defaultVsockPort
 if let idx = args.firstIndex(of: "--port"),
    idx + 1 < args.count,
    let p = UInt32(args[idx + 1]) {
