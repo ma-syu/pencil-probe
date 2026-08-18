@@ -5,7 +5,7 @@
 <dict>
     <!-- WHY launcher wrapper: plists are static XML with no variable
          support. The launcher reads ~/.config/pencil-probe.conf so
-         users can change IP/port without modifying the plist. -->
+         users can change the port without modifying the plist. -->
     <key>Label</key>
     <string>com.pencil-probe</string>
 

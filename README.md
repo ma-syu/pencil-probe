@@ -12,7 +12,8 @@ with varying line width and opacity.
 ## How it works
 
 1. **iPad side**: A patch to VirtualMac captures Apple Pencil touch
-   events (pressure + coordinates) and sends them to the guest over TCP.
+   events (pressure, coordinates, tilt) and sends them to the guest
+   over vsock (VZVirtioSocketDevice).
 2. **macOS guest side**: pencil-probe receives the data and injects
    synthetic tablet events via CGEventPost.
 
@@ -31,19 +32,18 @@ Run on the macOS guest:
 curl -fsSL https://github.com/ma-syu/pencil-probe/releases/latest/download/install.sh | bash
 ```
 
-You will be prompted for the guest's IP address and port.
+You will be prompted for the vsock port (default: 9949).
 
 Non-interactive mode:
 
 ```sh
-curl -fsSL .../install.sh | bash -s -- <guest-ip>
-curl -fsSL .../install.sh | bash -s -- <guest-ip> <port>
+curl -fsSL .../install.sh | bash -s -- 9949
 ```
 
 This installs:
 - `~/bin/pencil-probe` — binary
 - `~/bin/pencil-probe-launcher.sh` — wrapper that reads config and launches the binary
-- `~/.config/pencil-probe.conf` — IP/port configuration
+- `~/.config/pencil-probe.conf` — port configuration
 - `~/Library/LaunchAgents/com.pencil-probe.plist` — auto-start at login
 
 ## Configuration
@@ -51,9 +51,7 @@ This installs:
 Edit `~/.config/pencil-probe.conf`:
 
 ```
-LISTEN=<guest-ip>
 PORT=9949
-# ALLOW=<iPad-ip>  # restrict connections to a single IP
 ```
 
 Apply changes:
@@ -65,13 +63,11 @@ launchctl kickstart -k gui/$(id -u)/com.pencil-probe
 ## Manual usage
 
 ```sh
-pencil-probe --listen <guest-ip> --port 9949
+pencil-probe --port 9949
 ```
 
 Options:
-- `--listen <IP>` — IP address to bind (default: `127.0.0.1`)
-- `--port <port>` — listening port (default: `9949`)
-- `--allow <IP>` — only accept connections from this IP
+- `--port <port>` — vsock port (default: `9949`)
 
 ## Accessibility permission
 
@@ -105,23 +101,26 @@ curl -fsSL https://github.com/ma-syu/pencil-probe/releases/latest/download/insta
 ## Host setup (iPad)
 
 Apply the pencil relay patch to VirtualMac and rebuild. The patch adds
-TCP transmission of Apple Pencil pressure and coordinates in
+vsock transmission of Apple Pencil pressure, coordinates, and tilt in
 `touchesBegan`, `touchesMoved`, and `touchesEnded`.
 
-Connection settings (environment variables):
-- `PENCIL_RELAY_HOST` — guest IP address (default: `192.168.1.2`)
-- `PENCIL_RELAY_PORT` — port number (default: `9949`)
+The vsock port is defined as `kPencilVsockPort` (default: `9949`) in
+`VirtualMacApp.m`. It must match the port used by pencil-probe on
+the guest.
 
 ## Protocol
 
-13 bytes, fixed-length, little-endian:
+21 bytes, fixed-length, little-endian (backward-compatible with
+13-byte legacy packets that omit tilt fields):
 
-| Offset | Type    | Description                          |
-|--------|---------|--------------------------------------|
+| Offset | Type    | Description                            |
+|--------|---------|----------------------------------------|
 | 0      | uint8   | Event type (0=point, 1=enter, 2=leave) |
-| 1–4    | float32 | Pressure (0.0–1.0)                   |
-| 5–8    | float32 | X (0.0–1.0, normalized)              |
-| 9–12   | float32 | Y (0.0–1.0, normalized)              |
+| 1–4    | float32 | Pressure (0.0–1.0)                     |
+| 5–8    | float32 | X (0.0–1.0, normalized)                |
+| 9–12   | float32 | Y (0.0–1.0, normalized)                |
+| 13–16  | float32 | Altitude (0=parallel, π/2=perpendicular) |
+| 17–20  | float32 | Azimuth (0–2π, tilt direction)         |
 
 ## Verify downloads
 
