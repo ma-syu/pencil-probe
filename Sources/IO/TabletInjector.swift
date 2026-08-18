@@ -20,6 +20,11 @@ import Core
 /// paths, so posting both maximizes compatibility.
 enum TabletInjector {
 
+    // CGEvent mouse subtypes not exposed in Swift's CoreGraphics overlay.
+    // Values from CGEvent.h / IOLLEvent.h.
+    private static let mouseSubtypeTabletPoint: Int64 = 1
+    private static let mouseSubtypeTabletProximity: Int64 = 2
+
     /// Post a tablet proximity event (enter or leave).
     static func postProximity(
         _ params: TabletProximityParams,
@@ -33,7 +38,7 @@ enum TabletInjector {
         // Subtype must be set before other fields (CGEvent.h).
         event.setIntegerValueField(
             .mouseEventSubtype,
-            value: 2 // kCGEventMouseSubtypeTabletProximity
+            value: mouseSubtypeTabletProximity
         )
         applyProximityFields(params, to: event)
 
@@ -58,7 +63,7 @@ enum TabletInjector {
         // Subtype must be set before other fields (CGEvent.h).
         event.setIntegerValueField(
             .mouseEventSubtype,
-            value: 1 // kCGEventMouseSubtypeTabletPoint
+            value: mouseSubtypeTabletPoint
         )
         applyPointFields(params, to: event)
 

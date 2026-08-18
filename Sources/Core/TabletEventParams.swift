@@ -44,9 +44,10 @@ public struct TabletProximityParams: Sendable, Equatable {
     /// System-assigned device ID. Must be consistent with point events.
     public let deviceID: Int
 
-    /// Pointer type: 1 = pen, 3 = eraser (IOLLEvent.h).
-    /// Default is pen. Apps use this to switch between draw and erase modes.
-    public let pointerType: Int = 1
+    /// Pointer type (IOLLEvent.h NX_TABLET_POINTER_*).
+    /// Apps use this to switch between draw and erase modes.
+    public static let pointerTypePen = 1
+    public let pointerType: Int = pointerTypePen
 
     /// Bitmask of device capabilities (IOLLEvent.h NX_TABLET_CAPABILITY_*).
     ///
