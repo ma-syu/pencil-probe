@@ -42,23 +42,9 @@ curl -fsSL .../install.sh | bash -s -- 9949
 
 This installs:
 - `~/bin/pencil-probe` — binary
-- `~/bin/pencil-probe-launcher.sh` — wrapper that reads config and launches the binary
-- `~/.config/pencil-probe.conf` — port configuration
 - `~/Library/LaunchAgents/com.pencil-probe.plist` — auto-start at login
 
-## Configuration
-
-Edit `~/.config/pencil-probe.conf`:
-
-```
-PORT=9949
-```
-
-Apply changes:
-
-```sh
-launchctl kickstart -k gui/$(id -u)/com.pencil-probe
-```
+To change the vsock port, re-run install.sh with the new port number.
 
 ## Manual usage
 
@@ -84,6 +70,9 @@ enable the appropriate entry for your setup:
   needed when launching pencil-probe over an SSH session for debugging.
 
 A warning is printed at startup if the permission is missing.
+
+After updating the binary (re-running install.sh), you must re-register
+the accessibility permission: remove the old entry and add the new one.
 
 ## Stop / restart
 

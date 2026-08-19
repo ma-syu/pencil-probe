@@ -9,7 +9,7 @@ set -euo pipefail
 #   curl -fsSL ... | sh -s uninstall                # uninstall
 #
 # WHY curl | sh: minimize the number of steps for users.
-# Downloads the binary, places it in ~/bin/, creates a config file,
+# Downloads the binary, places it in ~/bin/,
 # and registers a LaunchAgent — all in one command.
 
 # External command dependencies.
@@ -32,13 +32,14 @@ fi
 REPO="ma-syu/pencil-probe"
 BIN_DIR="${HOME}/bin"
 BIN="${BIN_DIR}/pencil-probe"
-LAUNCHER="${BIN_DIR}/pencil-probe-launcher.sh"
-CONFIG_DIR="${HOME}/.config"
-CONFIG="${CONFIG_DIR}/pencil-probe.conf"
 PLIST_NAME="com.pencil-probe.plist"
 PLIST_DIR="${HOME}/Library/LaunchAgents"
 PLIST="${PLIST_DIR}/${PLIST_NAME}"
 DEFAULT_PORT=9949
+
+# v2.0.0 以前の残骸（後方互換のため削除対象として保持）
+LEGACY_LAUNCHER="${BIN_DIR}/pencil-probe-launcher.sh"
+LEGACY_CONFIG="${HOME}/.config/pencil-probe.conf"
 
 # --- Uninstall ---
 if [ "${1:-}" = "uninstall" ]; then
@@ -52,12 +53,8 @@ if [ "${1:-}" = "uninstall" ]; then
 
     rm -f "${PLIST}"   && echo "  Removed: ${PLIST}"
     rm -f "${BIN}"     && echo "  Removed: ${BIN}"
-    rm -f "${LAUNCHER}" && echo "  Removed: ${LAUNCHER}"
-
-    # Keep the config file so re-install preserves settings
-    if [ -f "${CONFIG}" ]; then
-        echo "  Kept: ${CONFIG} (remove manually if not needed)"
-    fi
+    rm -f "${LEGACY_LAUNCHER}" && echo "  Removed: ${LEGACY_LAUNCHER}"
+    rm -f "${LEGACY_CONFIG}"   && echo "  Removed: ${LEGACY_CONFIG}"
 
     echo "=== Done ==="
     exit 0
@@ -81,33 +78,26 @@ fi
 chmod +x "${BIN}"
 echo "  Installed: ${BIN}"
 
-# --- Download launcher script ---
-LAUNCHER_URL="https://github.com/${REPO}/releases/latest/download/pencil-probe-launcher.sh"
-if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "${LAUNCHER}" "${LAUNCHER_URL}"
-else
-    wget -qO "${LAUNCHER}" "${LAUNCHER_URL}"
-fi
-chmod +x "${LAUNCHER}"
-echo "  Installed: ${LAUNCHER}"
+# --- Clean up v2.0.0 以前の残骸 ---
+rm -f "${LEGACY_LAUNCHER}"
+rm -f "${LEGACY_CONFIG}"
 
-# --- Create config file ---
-# Priority: command-line args > existing config > interactive prompt.
-# On re-run, existing values are shown as defaults.
-#
+# --- Determine port ---
+# Priority: command-line args > existing plist > interactive prompt.
 # Vsock needs only a port number. No IP address or access control
 # is needed because vsock is VM-internal — only the host (iPad)
 # can connect through Virtualization.framework.
 
 PORT=""
+OLD_PORT="${DEFAULT_PORT}"
 
-# Read existing config for default values
-if [ -f "${CONFIG}" ]; then
-    . "${CONFIG}" 2>/dev/null || true
-    OLD_PORT="${PORT:-${DEFAULT_PORT}}"
-    PORT=""
-else
-    OLD_PORT="${DEFAULT_PORT}"
+# Read port from existing plist (for re-install)
+if [ -f "${PLIST}" ]; then
+    # ProgramArguments: [binary, --port, PORT] — PORT は 3 番目の要素
+    PLIST_PORT="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:2" "${PLIST}" 2>/dev/null || true)"
+    if [ -n "${PLIST_PORT}" ]; then
+        OLD_PORT="${PLIST_PORT}"
+    fi
 fi
 
 # From command-line arguments
@@ -126,24 +116,39 @@ if [ -z "${PORT}" ]; then
     fi
 fi
 
-mkdir -p "${CONFIG_DIR}"
-cat > "${CONFIG}" <<EOF
-# pencil-probe configuration
-# Edit this file and restart the LaunchAgent to apply changes:
-#   launchctl kickstart -k gui/\$(id -u)/com.pencil-probe
-PORT=${PORT:-${DEFAULT_PORT}}
-EOF
-echo "  Config: ${CONFIG} (PORT=${PORT:-${DEFAULT_PORT}})"
+PORT="${PORT:-${DEFAULT_PORT}}"
 
 # --- Register LaunchAgent ---
+# WHY inline generation: plist に $HOME の絶対パスを書き込む必要がある。
+# テンプレートをダウンロードして置換するより、インストール時に生成する方が
+# 確実で、BTM に「pencil-probe」と表示される（/bin/sh 経由だと「sh」になる）。
 mkdir -p "${PLIST_DIR}"
 
-PLIST_URL="https://github.com/${REPO}/releases/latest/download/${PLIST_NAME}"
-if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "${PLIST}" "${PLIST_URL}"
-else
-    wget -qO "${PLIST}" "${PLIST_URL}"
-fi
+cat > "${PLIST}" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.pencil-probe</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${BIN}</string>
+        <string>--port</string>
+        <string>${PORT}</string>
+    </array>
+    <key>KeepAlive</key>
+    <true/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/pencil-probe.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/pencil-probe.log</string>
+</dict>
+</plist>
+EOF
 
 # Stop if already running
 if launchctl list "${PLIST_NAME%.plist}" >/dev/null 2>&1; then
@@ -156,9 +161,8 @@ echo "  LaunchAgent registered and started"
 echo ""
 echo "=== Done ==="
 echo ""
-echo "pencil-probe is now running (vsock port ${PORT:-${DEFAULT_PORT}})."
-echo "  Config: ${CONFIG}"
-echo "  Log:    /tmp/pencil-probe.log"
+echo "pencil-probe is now running (vsock port ${PORT})."
+echo "  Log: /tmp/pencil-probe.log"
 echo ""
 echo "Accessibility permission is required."
 echo "  System Settings > Privacy & Security > Accessibility"
