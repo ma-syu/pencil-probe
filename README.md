@@ -11,9 +11,9 @@ with varying line width and opacity.
 
 ## How it works
 
-1. **iPad side**: A patch to VirtualMac captures Apple Pencil touch
-   events (pressure, coordinates, tilt) and sends them to the guest
-   over vsock (VZVirtioSocketDevice).
+1. **iPad side**: VirtualMacOniPad captures Apple Pencil touch events
+   (pressure, coordinates, tilt) and sends them to the guest over
+   vsock (VZVirtioSocketDevice).
 2. **macOS guest side**: pencil-probe receives the data and injects
    synthetic tablet events via CGEventPost.
 
@@ -21,7 +21,7 @@ with varying line width and opacity.
 
 - iPad with Apple Pencil
 - [VirtualMacOniPad](https://github.com/nfzerox/VirtualMacOniPad)
-  with the pencil relay patch applied (see [Host setup](#host-setup-ipad))
+  (pencil relay is included since [PR #49](https://github.com/nfzerox/VirtualMacOniPad/pull/49))
 - macOS 13+ (guest)
 
 ## Install
@@ -100,9 +100,10 @@ curl -fsSL https://github.com/ma-syu/pencil-probe/releases/latest/download/insta
 
 ## Host setup (iPad)
 
-Apply the pencil relay patch to VirtualMac and rebuild. The patch adds
-vsock transmission of Apple Pencil pressure, coordinates, and tilt in
-`touchesBegan`, `touchesMoved`, and `touchesEnded`.
+The pencil relay is included in
+[VirtualMacOniPad](https://github.com/nfzerox/VirtualMacOniPad)
+(merged in [PR #49](https://github.com/nfzerox/VirtualMacOniPad/pull/49)).
+Build VirtualMacOniPad and install it on your iPad — no patches needed.
 
 The vsock port is defined as `kPencilVsockPort` (default: `9949`) in
 `VirtualMacApp.m`. It must match the port used by pencil-probe on
