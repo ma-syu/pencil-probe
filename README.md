@@ -55,7 +55,22 @@ pencil-probe --port 9949
 Options:
 - `--port <port>` — vsock port (default: `9949`)
 
-## Accessibility permission
+## Required permissions
+
+pencil-probe needs two macOS permissions. **Both must be enabled** for
+pressure and tilt detection to work.
+
+### Background Task Management (BTM)
+
+pencil-probe runs as a LaunchAgent. macOS requires explicit approval in
+**System Settings > General > Login Items & Extensions**.
+
+Find `pencil-probe` (displayed as `sh` because it launches via
+`/bin/sh -c`) and make sure it is enabled. If disabled, pencil-probe
+will not start and only basic mouse input (no pressure or tilt) will be
+available via SPICE.
+
+### Accessibility
 
 pencil-probe injects events via CGEventPost, which requires macOS
 Accessibility permission.
