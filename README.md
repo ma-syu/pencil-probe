@@ -3,17 +3,20 @@
 Use your iPad's display as a pressure-sensitive pen tablet for macOS.
 
 VirtualMac's Virtualization.framework only forwards mouse events, so
-Apple Pencil pressure data is lost. pencil-probe works around this
-limitation by relaying pressure data from iPad to the guest in real time.
+Apple Pencil pressure, tilt, and hover data is lost. pencil-probe works
+around this limitation by relaying pen data from iPad to the guest in
+real time.
 
 Drawing apps like Clip Studio Paint can then respond to pen pressure
-with varying line width and opacity.
+with varying line width and opacity, and show brush previews while
+the pen hovers above the screen.
 
 ## How it works
 
-1. **iPad side**: VirtualMacOniPad captures Apple Pencil touch events
-   (pressure, coordinates, tilt) and sends them to the guest over
-   vsock (VZVirtioSocketDevice).
+1. **iPad side**: VirtualMacOniPad captures Apple Pencil events
+   (pressure, coordinates, tilt, hover) including coalesced touches
+   at up to 240Hz, and sends them to the guest over vsock
+   (VZVirtioSocketDevice).
 2. **macOS guest side**: pencil-probe receives the data and injects
    synthetic tablet events via CGEventPost.
 
@@ -40,9 +43,23 @@ Non-interactive mode:
 curl -fsSL .../install.sh | bash -s -- 9949
 ```
 
+The script requires `sudo` to install a system LaunchDaemon
+(`/Library/LaunchDaemons/`).
+
+**Why system LaunchDaemon, not user LaunchAgent?**
+VirtualMacOniPad runs macOS inside a Virtualization.framework VM. In this
+environment the GUI session domain is unstable — it repeatedly enters
+"on-demand-only" mode, causing user LaunchAgents to be killed and
+respawned in a loop. System LaunchDaemons run in the system domain and
+are not affected by this issue.
+
+If you are upgrading from v2.x (which used a user LaunchAgent), the
+install script automatically removes the old LaunchAgent and migrates
+to a system LaunchDaemon.
+
 This installs:
 - `~/bin/pencil-probe` — binary
-- `~/Library/LaunchAgents/com.pencil-probe.plist` — auto-start at login
+- `/Library/LaunchDaemons/com.pencil-probe.plist` — auto-start at boot
 
 To change the vsock port, re-run install.sh with the new port number.
 
@@ -62,13 +79,12 @@ pressure and tilt detection to work.
 
 ### Background Task Management (BTM)
 
-pencil-probe runs as a LaunchAgent. macOS requires explicit approval in
-**System Settings > General > Login Items & Extensions**.
+pencil-probe runs as a system LaunchDaemon. macOS requires explicit
+approval in **System Settings > General > Login Items & Extensions**.
 
-Find `pencil-probe` (displayed as `sh` because it launches via
-`/bin/sh -c`) and make sure it is enabled. If disabled, pencil-probe
-will not start and only basic mouse input (no pressure or tilt) will be
-available via SPICE.
+Find `pencil-probe` and make sure it is enabled under "Allow in the
+Background". If disabled, pencil-probe will not start and only basic
+mouse input (no pressure or tilt) will be available.
 
 ### Accessibility
 
@@ -78,7 +94,7 @@ Accessibility permission.
 Go to **System Settings > Privacy & Security > Accessibility** and
 enable the appropriate entry for your setup:
 
-- **LaunchAgent (normal usage)** — Enable `pencil-probe`. This is all
+- **LaunchDaemon (normal usage)** — Enable `pencil-probe`. This is all
   you need for the standard setup.
 - **Running from Terminal.app** — Enable `Terminal` instead.
 - **Running via SSH** — Enable `sshd-keygen-wrapper` instead. Only
@@ -92,8 +108,8 @@ the accessibility permission: remove the old entry and add the new one.
 ## Stop / restart
 
 ```sh
-launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.pencil-probe.plist
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.pencil-probe.plist
+sudo launchctl bootout system/com.pencil-probe
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.pencil-probe.plist
 ```
 
 ## Uninstall
@@ -118,9 +134,9 @@ the guest.
 21 bytes, fixed-length, little-endian (backward-compatible with
 13-byte legacy packets that omit tilt fields):
 
-| Offset | Type    | Description                            |
-|--------|---------|----------------------------------------|
-| 0      | uint8   | Event type (0=point, 1=enter, 2=leave) |
+| Offset | Type    | Description                                      |
+|--------|---------|--------------------------------------------------|
+| 0      | uint8   | Event type (0=point, 1=enter, 2=leave, 3=hover, 4=hoverEnd) |
 | 1–4    | float32 | Pressure (0.0–1.0)                     |
 | 5–8    | float32 | X (0.0–1.0, normalized)                |
 | 9–12   | float32 | Y (0.0–1.0, normalized)                |

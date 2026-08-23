@@ -10,7 +10,14 @@ set -euo pipefail
 #
 # WHY curl | sh: minimize the number of steps for users.
 # Downloads the binary, places it in ~/bin/,
-# and registers a LaunchAgent — all in one command.
+# and registers a system LaunchDaemon — all in one command.
+# Requires sudo for /Library/LaunchDaemons/ access.
+#
+# WHY system LaunchDaemon (not user LaunchAgent):
+# VirtualMacOniPad runs macOS in a Virtualization.framework VM where the
+# GUI session domain is unstable — it repeatedly enters on-demand-only
+# mode, causing user LaunchAgents to spawn/die in a loop. System-level
+# LaunchDaemons run in the system domain and are not affected.
 
 # External command dependencies.
 # curl/wget: either one is sufficient (OPTIONAL).
@@ -33,26 +40,33 @@ REPO="ma-syu/pencil-probe"
 BIN_DIR="${HOME}/bin"
 BIN="${BIN_DIR}/pencil-probe"
 PLIST_NAME="com.pencil-probe.plist"
-PLIST_DIR="${HOME}/Library/LaunchAgents"
+PLIST_DIR="/Library/LaunchDaemons"
 PLIST="${PLIST_DIR}/${PLIST_NAME}"
 DEFAULT_PORT=9949
 
-# v2.0.0 以前の残骸（後方互換のため削除対象として保持）
+# 旧バージョンの残骸（後方互換のため削除対象として保持）
 LEGACY_LAUNCHER="${BIN_DIR}/pencil-probe-launcher.sh"
 LEGACY_CONFIG="${HOME}/.config/pencil-probe.conf"
+LEGACY_USER_PLIST="${HOME}/Library/LaunchAgents/${PLIST_NAME}"
 
 # --- Uninstall ---
 if [ "${1:-}" = "uninstall" ]; then
     echo "=== pencil-probe uninstall ==="
 
-    # Stop and unregister the LaunchAgent
-    if launchctl list "${PLIST_NAME%.plist}" >/dev/null 2>&1; then
-        launchctl bootout "gui/$(id -u)" "${PLIST}" 2>/dev/null || true
-        echo "  LaunchAgent stopped"
+    # Stop and unregister the system LaunchDaemon
+    if sudo launchctl list "${PLIST_NAME%.plist}" >/dev/null 2>&1; then
+        sudo launchctl bootout "system/${PLIST_NAME%.plist}" 2>/dev/null || true
+        echo "  LaunchDaemon stopped"
     fi
 
-    rm -f "${PLIST}"   && echo "  Removed: ${PLIST}"
-    rm -f "${BIN}"     && echo "  Removed: ${BIN}"
+    # Clean up legacy user LaunchAgent (v2.x)
+    if launchctl list "${PLIST_NAME%.plist}" >/dev/null 2>&1; then
+        launchctl bootout "gui/$(id -u)/${PLIST_NAME%.plist}" 2>/dev/null || true
+    fi
+    rm -f "${LEGACY_USER_PLIST}" && echo "  Removed legacy: ${LEGACY_USER_PLIST}"
+
+    sudo rm -f "${PLIST}" && echo "  Removed: ${PLIST}"
+    rm -f "${BIN}"        && echo "  Removed: ${BIN}"
     rm -f "${LEGACY_LAUNCHER}" && echo "  Removed: ${LEGACY_LAUNCHER}"
     rm -f "${LEGACY_CONFIG}"   && echo "  Removed: ${LEGACY_CONFIG}"
 
@@ -78,9 +92,15 @@ fi
 chmod +x "${BIN}"
 echo "  Installed: ${BIN}"
 
-# --- Clean up v2.0.0 以前の残骸 ---
+# --- Clean up legacy files ---
 rm -f "${LEGACY_LAUNCHER}"
 rm -f "${LEGACY_CONFIG}"
+# Migrate from user LaunchAgent (v2.x) to system LaunchDaemon
+if [ -f "${LEGACY_USER_PLIST}" ]; then
+    launchctl bootout "gui/$(id -u)/${PLIST_NAME%.plist}" 2>/dev/null || true
+    rm -f "${LEGACY_USER_PLIST}"
+    echo "  Migrated from user LaunchAgent to system LaunchDaemon"
+fi
 
 # --- Determine port ---
 # Priority: command-line args > existing plist > interactive prompt.
@@ -118,13 +138,13 @@ fi
 
 PORT="${PORT:-${DEFAULT_PORT}}"
 
-# --- Register LaunchAgent ---
-# WHY inline generation: plist に $HOME の絶対パスを書き込む必要がある。
-# テンプレートをダウンロードして置換するより、インストール時に生成する方が
-# 確実で、BTM に「pencil-probe」と表示される（/bin/sh 経由だと「sh」になる）。
-mkdir -p "${PLIST_DIR}"
+# --- Register system LaunchDaemon ---
+# WHY inline generation: plist にバイナリの絶対パスとユーザー名を
+# 書き込む必要がある。インストール時に生成する方が確実で、
+# BTM に「pencil-probe」と表示される（/bin/sh 経由だと「sh」になる）。
+CURRENT_USER="$(id -un)"
 
-cat > "${PLIST}" <<EOF
+sudo tee "${PLIST}" > /dev/null <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -138,6 +158,10 @@ cat > "${PLIST}" <<EOF
         <string>--port</string>
         <string>${PORT}</string>
     </array>
+    <key>UserName</key>
+    <string>${CURRENT_USER}</string>
+    <key>WorkingDirectory</key>
+    <string>${HOME}</string>
     <key>KeepAlive</key>
     <true/>
     <key>RunAtLoad</key>
@@ -151,12 +175,12 @@ cat > "${PLIST}" <<EOF
 EOF
 
 # Stop if already running
-if launchctl list "${PLIST_NAME%.plist}" >/dev/null 2>&1; then
-    launchctl bootout "gui/$(id -u)" "${PLIST}" 2>/dev/null || true
+if sudo launchctl list "${PLIST_NAME%.plist}" >/dev/null 2>&1; then
+    sudo launchctl bootout "system/${PLIST_NAME%.plist}" 2>/dev/null || true
 fi
 
-launchctl bootstrap "gui/$(id -u)" "${PLIST}"
-echo "  LaunchAgent registered and started"
+sudo launchctl bootstrap system "${PLIST}"
+echo "  LaunchDaemon registered and started"
 
 echo ""
 echo "=== Done ==="
@@ -164,6 +188,10 @@ echo ""
 echo "pencil-probe is now running (vsock port ${PORT})."
 echo "  Log: /tmp/pencil-probe.log"
 echo ""
-echo "Accessibility permission is required."
-echo "  System Settings > Privacy & Security > Accessibility"
-echo "  Enable 'pencil-probe'"
+echo "Two permissions are required (System Settings):"
+echo ""
+echo "  1. General > Login Items & Extensions"
+echo "     Enable 'pencil-probe' under 'Allow in the Background'"
+echo ""
+echo "  2. Privacy & Security > Accessibility"
+echo "     Enable 'pencil-probe'"
