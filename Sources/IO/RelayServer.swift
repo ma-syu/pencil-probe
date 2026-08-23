@@ -87,6 +87,17 @@ enum RelayServer {
         return clientFd
     }
 
+    /// Pen relay state machine.
+    ///
+    /// Tracks whether the pen is idle, hovering, or touching to
+    /// correctly map iPad events to macOS tablet proximity and
+    /// mouse events. See PencilEventType for the full lifecycle.
+    private enum PenState {
+        case idle
+        case hovering
+        case touching
+    }
+
     private static func handleClient(_ fd: Int32) {
         // privateState: our synthetic events don't affect the global
         // event state machine. This prevents our injected mouse-down
@@ -96,6 +107,7 @@ enum RelayServer {
         // Screen size is read once per connection. If the display
         // resolution changes mid-session, the client must reconnect.
         let screen = CGDisplayBounds(CGMainDisplayID()).size
+        var state = PenState.idle
 
         var buf = [UInt8](repeating: 0, count: PencilPacket.size)
         while readExact(fd, into: &buf, count: PencilPacket.size) {
@@ -106,7 +118,27 @@ enum RelayServer {
                 x: CGFloat(packet.x) * screen.width,
                 y: CGFloat(packet.y) * screen.height
             )
-            injectEvent(packet, at: pos, source: source, deviceID: deviceID)
+            state = injectEvent(
+                packet, at: pos, source: source,
+                deviceID: deviceID, state: state
+            )
+        }
+        // Connection closed: clean up proximity if still active.
+        if state != .idle {
+            let pos = CGPoint.zero
+            if state == .touching {
+                let release = TabletPointParams(
+                    pressure: 0, tiltX: 0, tiltY: 0, deviceID: deviceID
+                )
+                postPointPair(
+                    release, mouseType: .leftMouseUp,
+                    at: pos, source: source
+                )
+            }
+            postProximityPair(
+                entering: false, deviceID: deviceID,
+                at: pos, source: source
+            )
         }
         Darwin.close(fd)
     }
@@ -115,8 +147,9 @@ enum RelayServer {
         _ packet: PencilPacket,
         at pos: CGPoint,
         source: CGEventSource?,
-        deviceID: Int
-    ) {
+        deviceID: Int,
+        state: PenState
+    ) -> PenState {
         let (tiltX, tiltY) = TiltConversion.toTiltXY(
             altitude: packet.altitude, azimuth: packet.azimuth
         )
@@ -125,20 +158,46 @@ enum RelayServer {
             tiltX: tiltX, tiltY: tiltY, deviceID: deviceID
         )
         switch packet.type {
-        case .proximityEnter:
-            postProximityPair(
-                entering: true, deviceID: deviceID,
+        case .hover:
+            if state == .idle {
+                postProximityPair(
+                    entering: true, deviceID: deviceID,
+                    at: pos, source: source
+                )
+            }
+            postPointPair(
+                pointParams, mouseType: .mouseMoved,
                 at: pos, source: source
             )
+            return .hovering
+        case .hoverEnd:
+            if state == .hovering {
+                postProximityPair(
+                    entering: false, deviceID: deviceID,
+                    at: pos, source: source
+                )
+                return .idle
+            }
+            // touching or idle: ignore (pen touched screen or already gone)
+            return state
+        case .proximityEnter:
+            if state == .idle {
+                postProximityPair(
+                    entering: true, deviceID: deviceID,
+                    at: pos, source: source
+                )
+            }
             postPointPair(
                 pointParams, mouseType: .leftMouseDown,
                 at: pos, source: source
             )
+            return .touching
         case .point:
             postPointPair(
                 pointParams, mouseType: .leftMouseDragged,
                 at: pos, source: source
             )
+            return .touching
         case .proximityLeave:
             let release = TabletPointParams(
                 pressure: 0, tiltX: tiltX, tiltY: tiltY, deviceID: deviceID
@@ -151,6 +210,7 @@ enum RelayServer {
                 entering: false, deviceID: deviceID,
                 at: pos, source: source
             )
+            return .idle
         }
     }
 

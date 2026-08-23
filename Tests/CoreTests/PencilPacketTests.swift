@@ -7,7 +7,7 @@ import Testing
     @Test func roundTrip() {
         var rng = SystemRandomNumberGenerator()
         let types: [PencilEventType] = [
-            .point, .proximityEnter, .proximityLeave,
+            .point, .proximityEnter, .proximityLeave, .hover, .hoverEnd,
         ]
         for _ in 0..<200 {
             let original = PencilPacket(
@@ -77,7 +77,7 @@ import Testing
         var bytes = PencilPacket(
             type: .point, pressure: 0.5, x: 0.5, y: 0.5
         ).encode()
-        for invalid: UInt8 in [3, 4, 128, 255] {
+        for invalid: UInt8 in [5, 6, 128, 255] {
             bytes[0] = invalid
             #expect(PencilPacket.decode(from: bytes) == nil)
         }
@@ -126,11 +126,21 @@ import Testing
             type: .proximityLeave, pressure: 0, x: 0, y: 0
         )
         #expect(leave.encode()[0] == 2)
+
+        let hover = PencilPacket(
+            type: .hover, pressure: 0, x: 0, y: 0
+        )
+        #expect(hover.encode()[0] == 3)
+
+        let hoverEnd = PencilPacket(
+            type: .hoverEnd, pressure: 0, x: 0, y: 0
+        )
+        #expect(hoverEnd.encode()[0] == 4)
     }
 
     @Test func encodedSizeConstant() {
         let types: [PencilEventType] = [
-            .point, .proximityEnter, .proximityLeave,
+            .point, .proximityEnter, .proximityLeave, .hover, .hoverEnd,
         ]
         for t in types {
             let p = PencilPacket(type: t, pressure: 0.5, x: 0.5, y: 0.5)

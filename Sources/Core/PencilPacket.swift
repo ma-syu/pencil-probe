@@ -1,9 +1,11 @@
 /// Event type in the pencil relay protocol.
 ///
-/// Maps to UIKit touch lifecycle: the host (iPad) sends proximityEnter
-/// when the Pencil first touches the screen, point events while dragging,
-/// and proximityLeave when lifted. These map to macOS tablet proximity
-/// and tablet-point events on the guest side (see TabletInjector).
+/// Maps to UIKit touch + hover lifecycle: the host (iPad) sends hover
+/// events while the Pencil is near the screen, proximityEnter when
+/// it touches, point events while dragging, proximityLeave when lifted,
+/// and hoverEnd when the Pencil leaves the detection range entirely.
+/// These map to macOS tablet proximity, mouse-moved, mouse-down/dragged/up
+/// events on the guest side (see TabletInjector).
 public enum PencilEventType: UInt8, Sendable {
     /// Pen dragging on screen (touchesMoved).
     case point = 0
@@ -11,12 +13,16 @@ public enum PencilEventType: UInt8, Sendable {
     case proximityEnter = 1
     /// Pen ended stroke (touchesEnded).
     case proximityLeave = 2
+    /// Pen hovering above screen (UIHoverGestureRecognizer .began/.changed).
+    case hover = 3
+    /// Pen left hover detection range (UIHoverGestureRecognizer .ended).
+    case hoverEnd = 4
 }
 
 /// A 21-byte binary packet for relaying Apple Pencil data over vsock.
 ///
 /// Wire format (little-endian):
-///   [0]      uint8   type (0=point, 1=enter, 2=leave)
+///   [0]      uint8   type (0=point, 1=enter, 2=leave, 3=hover, 4=hoverEnd)
 ///   [1..4]   float32 pressure (0.0–1.0)
 ///   [5..8]   float32 x (0.0–1.0, normalized)
 ///   [9..12]  float32 y (0.0–1.0, normalized)
