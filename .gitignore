@@ -16,3 +16,6 @@ xcuserdata/
 
 # gen-version.sh が生成
 Sources/IO/Version.swift
+
+# harness telemetry (session state: access.log / index-full.md / violations.log)
+.memory/
