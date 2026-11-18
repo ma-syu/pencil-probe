@@ -18,3 +18,13 @@ xcuserdata/
 Sources/IO/Version.swift
 
 # harness telemetry (session state: access.log / index-full.md / violations.log)
+
+# ローカルのツール設定と作業記録。
+#
+# WHY ここに書くか:
+#   これらはマシン固有で、リポジトリの成果物ではない。
+#   開発環境のグローバル設定 (~/.config/git/ignore) でも除外しているが、
+#   そちらはこのマシンにしか存在しない。別のマシンや CI でクローンした時点で
+#   除外が効かなくなるため、リポジトリと一緒に移動するこの層でも宣言する。
+.claude/
+.harness/
