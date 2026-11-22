@@ -44,7 +44,7 @@ PLIST_DIR="/Library/LaunchDaemons"
 PLIST="${PLIST_DIR}/${PLIST_NAME}"
 DEFAULT_PORT=9949
 
-# 旧バージョンの残骸（後方互換のため削除対象として保持）
+# Leftovers from older versions (kept as removal targets for backward compatibility)
 LEGACY_LAUNCHER="${BIN_DIR}/pencil-probe-launcher.sh"
 LEGACY_CONFIG="${HOME}/.config/pencil-probe.conf"
 LEGACY_USER_PLIST="${HOME}/Library/LaunchAgents/${PLIST_NAME}"
@@ -113,7 +113,7 @@ OLD_PORT="${DEFAULT_PORT}"
 
 # Read port from existing plist (for re-install)
 if [ -f "${PLIST}" ]; then
-    # ProgramArguments: [binary, --port, PORT] — PORT は 3 番目の要素
+    # ProgramArguments: [binary, --port, PORT] — PORT is the third element
     PLIST_PORT="$(/usr/libexec/PlistBuddy -c "Print :ProgramArguments:2" "${PLIST}" 2>/dev/null || true)"
     if [ -n "${PLIST_PORT}" ]; then
         OLD_PORT="${PLIST_PORT}"
@@ -139,9 +139,9 @@ fi
 PORT="${PORT:-${DEFAULT_PORT}}"
 
 # --- Register system LaunchDaemon ---
-# WHY inline generation: plist にバイナリの絶対パスとユーザー名を
-# 書き込む必要がある。インストール時に生成する方が確実で、
-# BTM に「pencil-probe」と表示される（/bin/sh 経由だと「sh」になる）。
+# WHY inline generation: the plist must embed the binary's absolute path and the
+# user name. Generating it at install time is more reliable, and it makes BTM
+# show "pencil-probe" rather than "sh" (what a /bin/sh wrapper would show).
 CURRENT_USER="$(id -un)"
 
 sudo tee "${PLIST}" > /dev/null <<EOF
